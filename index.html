@@ -1755,6 +1755,63 @@ function setup(){
   renderGoodsEditor(); renderPaymentsEditor(); renderReturnsEditor(); renderAllPreviews();
   bindSettings();
   updateDataStatus();
+  applyLicenseGate(); // 授权门：到期（试用/授权）→ 只读查看模式
+}
+
+// ================= 收费授权门（App 内）：到期只读模式 =================
+// AndroidBridge.licenseState()==2（试用到期或授权到期）→ 本页进入只读：
+// 数据可看（切换客户/统计/tabs/预览正常），但所有写入入口禁用（表格输入、设置、增删改、
+// 粘贴、导入、导出、打印、清空、撤销、新建/重命名/删除客户、选名称、AI 助手）。
+// 顶部提示条提供「立即激活」→ 原生桥 openActivate() 跳激活页续费。
+// 浏览器直接打开（无 AndroidBridge）不影响，仍是完整可用。
+function applyLicenseGate(){
+  if(!window.AndroidBridge || typeof AndroidBridge.licenseState !== 'function') return;
+  let st;
+  try{ st = AndroidBridge.licenseState(); }catch(_){ return; }
+  if(st !== 2) return; // 1=已激活 3=试用中 均完整可用；-1 时间异常在原生层已锁激活页
+  document.body.classList.add('readonly-mode');
+  // 动态注入只读样式（表格输入指针穿透防编辑；视觉置灰可读）
+  const style = document.createElement('style');
+  style.textContent =
+    '.readonly-mode td input{pointer-events:none;background:#f4f6f8 !important;color:#556 !important;}' +
+    '.readonly-mode .del-btn{visibility:hidden;}' +
+    '.readonly-mode button:disabled{opacity:.45;}' +
+    '#licenseBar{display:block!important;}';
+  document.head.appendChild(style);
+  // 顶部提示条
+  let bar = document.getElementById('licenseBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'licenseBar';
+    bar.style.cssText = 'display:block;background:#fff7e6;border-bottom:1px solid #ffd591;color:#ad4e00;' +
+      'padding:10px 14px;font-size:14px;text-align:center;position:sticky;top:0;z-index:999;';
+    bar.innerHTML = '⛔ 试用/授权已到期：当前为只读查看模式，数据可看不可改。' +
+      '<button id="licenseBarBtn" style="margin-left:10px;padding:4px 14px;border:none;border-radius:6px;' +
+      'background:#fa8c16;color:#fff;font-size:13px;cursor:pointer;">立即激活</button>';
+    document.body.insertBefore(bar, document.body.firstChild);
+    document.getElementById('licenseBarBtn').addEventListener('click', () => {
+      try{ AndroidBridge.openActivate(); }catch(_){}
+    });
+  }
+  // 禁用所有写入入口按钮
+  ['addGoods','addPayment','addReturn','clearGoods','clearPayments','clearReturns',
+   'pasteGoods','pastePayments','pasteReturns','pickNameGoods','pickNameReturns',
+   'importXlsx','exportXlsx','printBtn','undoBtn','resetAll','checkUpdate',
+   'addCustomerBtn','renameCustomerBtn','deleteCustomerBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.disabled = true;
+  });
+  // 设置区输入（写数据）禁用；客户搜索保留（可切换查看其它客户）
+  ['partyA','partyB','opening','openingNote','cutoffNote'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.disabled = true;
+  });
+  // 隐藏 AI 助手悬浮按钮（其「帮操作」含写操作，只读下不可用）
+  const ai = document.getElementById('aiFab');
+  if(ai) ai.style.display = 'none';
+  // 隐藏导入撤销条（未导入不存在，防御性隐藏）
+  const ub = document.getElementById('undoBar');
+  if(ub) ub.style.display = 'none';
 }
 function renderGoodsHTMLForPrint(){
   const groups = buildGoodsGroups(state.goods);
