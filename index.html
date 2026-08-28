@@ -530,7 +530,7 @@ function rowAmount(r){
 }
 
 /* ================= 状态 ================= */
-const APP_VERSION = 'v1.0';
+const APP_VERSION = 'v1.1';
 const LS_KEY = 'zhineng-duizhang-v1';
 // 多客户容器：localStorage 存 { v:2, current:客户id, customers:{ id: 客户state } }
 // state 始终 = 当前客户对象（同一引用），既有业务代码全部不变
@@ -1768,7 +1768,34 @@ function applyLicenseGate(){
   if(!window.AndroidBridge || typeof AndroidBridge.licenseState !== 'function') return;
   let st;
   try{ st = AndroidBridge.licenseState(); }catch(_){ return; }
-  if(st !== 2) return; // 1=已激活 3=试用中 均完整可用；-1 时间异常在原生层已锁激活页
+  if(st !== 2 && st !== 3) return; // 1=已激活 完整可用；-1 时间异常在原生层已锁激活页
+  // 顶部提示条：st==3 试用中（轻提示，随时可激活）；st==2 到期（只读+强制激活提示）
+  const expired = st === 2;
+  let bar = document.getElementById('licenseBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'licenseBar';
+    document.body.insertBefore(bar, document.body.firstChild);
+  }
+  bar.style.cssText = 'display:block;background:' + (expired ? '#fff7e6' : '#e6f4ff') +
+    ';border-bottom:1px solid ' + (expired ? '#ffd591' : '#91caff') +
+    ';color:' + (expired ? '#ad4e00' : '#1a5f9e') +
+    ';padding:10px 14px;font-size:14px;text-align:center;position:sticky;top:0;z-index:999;';
+  bar.innerHTML = expired
+    ? '⛔ 试用/授权已到期：当前为只读查看模式，数据可看不可改。<button id="licenseBarBtn" style="margin-left:10px;padding:4px 14px;border:none;border-radius:6px;background:#fa8c16;color:#fff;font-size:13px;cursor:pointer;">立即激活</button>'
+    : '🎁 免费试用中（还剩 <span id="trialDaysLeft"></span> 天），激活后永久使用。<button id="licenseBarBtn" style="margin-left:10px;padding:4px 14px;border:none;border-radius:6px;background:#2f7fd0;color:#fff;font-size:13px;cursor:pointer;">立即激活</button>';
+  document.getElementById('licenseBarBtn').addEventListener('click', () => {
+    try{ AndroidBridge.openActivate(); }catch(_){}
+  });
+  // 试用中：填充剩余天数
+  if(!expired && typeof AndroidBridge.trialDaysLeft === 'function'){
+    try{
+      const d = AndroidBridge.trialDaysLeft();
+      const el = document.getElementById('trialDaysLeft');
+      if(el) el.textContent = String(d);
+    }catch(_){}
+  }
+  if(!expired) return; // 试用中功能完整，只显示轻提示条
   document.body.classList.add('readonly-mode');
   // 动态注入只读样式（表格输入指针穿透防编辑；视觉置灰可读）
   const style = document.createElement('style');
@@ -1778,21 +1805,6 @@ function applyLicenseGate(){
     '.readonly-mode button:disabled{opacity:.45;}' +
     '#licenseBar{display:block!important;}';
   document.head.appendChild(style);
-  // 顶部提示条
-  let bar = document.getElementById('licenseBar');
-  if(!bar){
-    bar = document.createElement('div');
-    bar.id = 'licenseBar';
-    bar.style.cssText = 'display:block;background:#fff7e6;border-bottom:1px solid #ffd591;color:#ad4e00;' +
-      'padding:10px 14px;font-size:14px;text-align:center;position:sticky;top:0;z-index:999;';
-    bar.innerHTML = '⛔ 试用/授权已到期：当前为只读查看模式，数据可看不可改。' +
-      '<button id="licenseBarBtn" style="margin-left:10px;padding:4px 14px;border:none;border-radius:6px;' +
-      'background:#fa8c16;color:#fff;font-size:13px;cursor:pointer;">立即激活</button>';
-    document.body.insertBefore(bar, document.body.firstChild);
-    document.getElementById('licenseBarBtn').addEventListener('click', () => {
-      try{ AndroidBridge.openActivate(); }catch(_){}
-    });
-  }
   // 禁用所有写入入口按钮
   ['addGoods','addPayment','addReturn','clearGoods','clearPayments','clearReturns',
    'pasteGoods','pastePayments','pasteReturns','pickNameGoods','pickNameReturns',
