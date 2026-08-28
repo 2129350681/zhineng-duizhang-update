@@ -1,0 +1,3220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能对账单</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #eef1f5; color: #2b2f36; font-size: 14px; }
+  header { background: linear-gradient(135deg, #1f6feb, #2ea0ff); color: #fff; padding: 22px 150px 22px 28px; }
+  header h1 { font-size: 22px; margin-bottom: 6px; }
+  .version-badge { display: inline-block; vertical-align: middle; margin-left: 8px; padding: 2px 9px; border-radius: 11px; background: rgba(255,255,255,.22); border: 1px solid rgba(255,255,255,.55); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .5px; line-height: 1.5; }
+  header p { font-size: 13px; opacity: .92; }
+  main { max-width: 1200px; margin: 18px auto 110px; padding: 0 16px; }
+  .card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 16px 18px; margin-bottom: 16px; }
+  .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .customer-bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: #f6f8fb; border: 1px solid #e3e8f0; border-radius: 8px; }
+  .customer-search { position: relative; flex: 1 1 170px; min-width: 150px; }
+  .customer-search input { width: 100%; padding: 7px 10px; border: 1px solid #d4d9e0; border-radius: 6px; font-size: 14px; background: #fff; box-sizing: border-box; }
+  .customer-search input:focus { outline: none; border-color: #1f6feb; }
+  .customer-result { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 120; background: #fff; border: 1px solid #d4d9e0; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.14); max-height: 240px; overflow-y: auto; display: none; }
+  .customer-result.show { display: block; }
+  .customer-result .cr-item { padding: 9px 12px; cursor: pointer; font-size: 14px; border-bottom: 1px solid #f0f2f6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .customer-result .cr-item:last-child { border-bottom: none; }
+  .customer-result .cr-item:hover, .customer-result .cr-item.sel { background: #f2f7ff; }
+  .customer-result .cr-item .cr-no { color: #1a5fd0; margin-right: 6px; font-size: 12px; }
+  .customer-result .cr-empty { padding: 10px 12px; color: #99a; font-size: 13px; }
+  .customer-bar button { padding: 7px 12px; border: 1px solid #d4d9e0; background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .customer-bar button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  .customer-bar button.danger { color: #d33; border-color: #ecc; }
+  .customer-label { font-size: 13px; font-weight: 600; color: #445; }
+  .customer-tip { font-size: 11px; color: #889; width: 100%; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: #667; }
+  .field input { padding: 8px 10px; border: 1px solid #d4d9e0; border-radius: 6px; font-size: 14px; }
+  .field input:focus { outline: 2px solid #1f6feb33; border-color: #1f6feb; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button { padding: 9px 18px; border: 1px solid #d4d9e0; background: #fff; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px; color: #445; }
+  .tabs button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: 600; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .toolbar .hint { font-size: 12px; color: #889; flex-basis: 100%; }
+  button { padding: 8px 14px; border: 1px solid #d4d9e0; background: #f7f9fc; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  button:hover { background: #eef2f7; }
+  button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: 600; }
+  button.primary:hover { background: #1a5fd0; }
+  button.danger { color: #c0392b; border-color: #e5b8b2; }
+  button.danger:hover { background: #fdf0ee; }
+  .table-wrap { overflow-x: auto; border: 1px solid #e2e6ec; border-radius: 8px; }
+  .add-row-bottom { margin-top: 10px; width: 100%; padding: 10px; background: #f7f9fc; border: 1px dashed #b8c2cf; color: #1f6feb; font-size: 14px; border-radius: 8px; }
+  .add-row-bottom:hover { background: #eef2f7; border-color: #1f6feb; }
+  .pick-name { background: #fff7e8; border-color: #e8c98a; color: #9a6b00; }
+  .pick-name:hover { background: #fff0d4; }
+  /* 大字模式（老年友好）：放大全局字体与按钮 */
+  body.large-mode table.editor { font-size: 16px; }
+  body.large-mode table.editor th { font-size: 15px; padding: 10px 8px; }
+  body.large-mode table.editor input { font-size: 17px; padding: 11px 8px; min-width: 92px; }
+  /* 日期列加宽（大字模式 17px 字号下 2025.11.2 约 100px 宽，保证不用横向拖动就能看全） */
+  table.editor th:first-child, table.editor td:first-child { min-width: 92px; }
+  body.large-mode table.editor th:first-child, body.large-mode table.editor td:first-child { min-width: 112px; }
+  body.large-mode button { font-size: 16px; padding: 12px 18px; }
+  body.large-mode .tabs button { font-size: 16px; padding: 13px 20px; }
+  body.large-mode .customer-bar button { font-size: 15px; padding: 11px 14px; }
+  body.large-mode .customer-search input { font-size: 16px; padding: 11px 12px; }
+  body.large-mode .customer-result .cr-item { font-size: 16px; padding: 12px 14px; }
+  body.large-mode .customer-result .cr-item .cr-no { font-size: 13px; }
+  body.large-mode .customer-result .cr-empty { font-size: 15px; padding: 12px 14px; }
+  body.large-mode .add-row-bottom { font-size: 18px; padding: 15px; }
+  body.large-mode .toolbar .hint, body.large-mode #dataStatus { font-size: 14px; }
+  body.large-mode main { margin-bottom: 150px; }
+  body.large-mode .sheet-title { font-size: 19px; }
+  body.large-mode table.pv { font-size: 15px; }
+  body.large-mode table.pv th, body.large-mode table.pv td { padding: 8px 6px; }
+  body.large-mode .field input, body.large-mode .field select { font-size: 16px; padding: 10px 8px; }
+  body.large-mode .field label { font-size: 15px; }
+  body.large-mode .empty-tip { font-size: 15px; }
+  .lg-toggle { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 8px 10px; background: #f7f9fc; border: 1px solid #e2e6ec; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .lg-toggle input { width: 18px; height: 18px; }
+  /* 销售统计弹窗 */
+  .stats-modal { width: 94vw; max-width: 660px; }
+  .stats-chart { background: #fff; border: 1px solid #eef0f4; border-radius: 8px; padding: 12px 10px 6px; margin-bottom: 10px; }
+  .stats-title { font-weight: 700; color: #334; margin-bottom: 8px; font-size: 14px; }
+  .stats-bar-bar { transition: opacity .15s; }
+  .stats-bar-bar:hover { opacity: .75; cursor: pointer; }
+  .stats-prod { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px dashed #eef0f4; font-size: 13px; }
+  .stats-prod b { color: #1f6feb; }
+  .stats-tip { color: #889; font-size: 12px; }
+  /* 导入撤销条 */
+  .undo-bar { position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%); background: #2c3e50; color: #fff; padding: 10px 14px; border-radius: 12px; display: flex; gap: 10px; align-items: center; z-index: 95; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.28); max-width: 94vw; flex-wrap: wrap; justify-content: center; }
+  /* 选名称面板 */
+  .name-picker-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-height: 55vh; overflow-y: auto; margin: 10px 0; }
+  .name-picker-search { width: 100%; padding: 12px 14px; font-size: 16px; border: 2px solid #d4d9e0; border-radius: 10px; margin: 6px 0 2px; box-sizing: border-box; background: #fff; color: #223; }
+  .name-picker-search::placeholder { color: #99a; }
+  .name-picker-search:focus { outline: none; border-color: #1f6feb; background: #f2f7ff; }
+  body.large-mode .name-picker-search { font-size: 18px; padding: 14px 16px; }
+  .name-picker-grid button { padding: 14px 10px; font-size: 15px; text-align: center; background: #fff; border: 1px solid #d4d9e0; border-radius: 10px; cursor: pointer; line-height: 1.5; }
+  .name-picker-grid button:hover { border-color: #1f6feb; background: #f2f7ff; }
+  .name-picker-grid .np-price { display: block; font-size: 12px; color: #889; margin-top: 2px; }
+  .name-picker-empty { text-align: center; color: #889; padding: 20px 0; font-size: 14px; }
+  /* 名称输入实时联想：输入时在输入框下方弹出包含该字的产品（按出现频率排），点选填入，也可继续自己写 */
+  .name-suggest { position: fixed; z-index: 300; background: #fff; border: 1px solid #d4d9e0; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.16); max-height: 46vh; overflow-y: auto; min-width: 200px; max-width: 340px; font-size: 13px; }
+  .name-suggest .ns-item { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; border-bottom: 1px solid #f0f2f6; }
+  .name-suggest .ns-item:last-child { border-bottom: none; }
+  .name-suggest .ns-item:hover, .name-suggest .ns-item.sel { background: #f2f7ff; }
+  .name-suggest .ns-name { flex: 1; word-break: break-all; }
+  .name-suggest .ns-price { color: #1a5fd0; font-size: 12px; white-space: nowrap; }
+  .name-suggest .ns-count { color: #99a; font-size: 11px; white-space: nowrap; }
+  .name-suggest .ns-tip { padding: 9px 12px; color: #99a; font-size: 12px; }
+  body.large-mode .name-suggest { font-size: 16px; }
+  body.large-mode .name-suggest .ns-item { padding: 12px 14px; }
+  body.large-mode .name-suggest .ns-price { font-size: 14px; }
+  body.large-mode .name-suggest .ns-count { font-size: 12px; }
+  table.editor { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.editor th { background: #f2f5f9; padding: 8px 6px; text-align: left; border-bottom: 1px solid #d4d9e0; white-space: nowrap; font-weight: 600; }
+  table.editor td { border-bottom: 1px solid #eef1f5; padding: 3px 4px; }
+  table.editor input { width: 100%; min-width: 70px; padding: 7px 8px; border: 1px solid transparent; border-radius: 5px; font-size: 13px; background: transparent; }
+  table.editor input:hover { border-color: #c9d2dd; background: #fbfcfe; }
+  table.editor input:focus { outline: none; border-color: #1f6feb; background: #fff; }
+  table.editor input.num { text-align: right; }
+  .amount-cell { text-align: right; padding: 7px 8px; color: #1a5fd0; font-variant-numeric: tabular-nums; }
+  .del-btn { color: #c0392b; background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 5px; }
+  .del-btn:hover { background: #fdf0ee; }
+  .preview { margin-top: 18px; }
+  .preview h3 { font-size: 15px; margin: 18px 0 8px; color: #334; }
+  .preview h3:first-child { margin-top: 4px; }
+  .preview .sheet-title { text-align: center; font-size: 16px; font-weight: 700; padding: 10px 0 2px; }
+  .preview .sheet-sub { text-align: center; font-size: 12px; color: #667; padding-bottom: 8px; }
+  table.pv { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 14px; }
+  table.pv th { background: #f2f5f9; border: 1px solid #aab4c0; padding: 6px 8px; font-weight: 600; text-align: center; }
+  table.pv td { border: 1px solid #aab4c0; padding: 5px 8px; }
+  table.pv td.num, table.pv th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.pv tr.subtotal td { font-weight: 700; background: #f7f9fc; }
+  table.pv tr.year-total td { font-weight: 700; background: #fdeee0; }
+  table.pv tr.sumhead td { background: #f2f5f9; font-weight: 600; text-align: center; }
+  .empty-tip { color: #99a; padding: 20px 0; text-align: center; font-size: 13px; }
+  .actions { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e2e6ec; padding: 6px 8px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; box-shadow: 0 -2px 10px rgba(0,0,0,.06); z-index: 50; }
+  .actions button { padding: 5px 10px; font-size: 13px; border-radius: 6px; white-space: nowrap; }
+  .actions button:disabled { opacity: .4; cursor: default; }
+  body.large-mode .actions { padding: 7px 8px; }
+  body.large-mode .actions button { padding: 7px 12px; font-size: 14px; }
+  details.help { margin-bottom: 12px; }
+  details.help summary { cursor: pointer; color: #1f6feb; font-size: 13px; padding: 4px 0; }
+  details.help .help-body { font-size: 13px; color: #556; line-height: 1.8; padding: 8px 12px; background: #f7f9fc; border-radius: 8px; margin-top: 6px; }
+  .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .modal-mask.show { display: flex; }
+  .modal { background: #fff; border-radius: 10px; padding: 18px; width: 92%; max-width: 620px; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
+  .modal h3 { margin-bottom: 8px; }
+  .modal textarea { width: 100%; height: 240px; border: 1px solid #d4d9e0; border-radius: 6px; padding: 10px; font-size: 13px; font-family: Consolas, monospace; resize: vertical; }
+  .modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+  #printArea { display: none; }
+  @media print {
+    body { background: #fff; }
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block !important; }
+    #printArea table.pv { page-break-inside: auto; }
+    #printArea table.pv tr { page-break-inside: avoid; }
+    #printArea .sheet-title { font-size: 16px; }
+  }
+  /* ===== 回到顶部（回首页）浮动按钮：常驻右下角小圆钮，点击平滑回顶 ===== */
+  .back-top{position:fixed;right:10px;top:14px;width:46px;height:46px;border-radius:50%;border:none;background:rgba(59,130,246,.85);color:#fff;font-size:22px;line-height:1;cursor:pointer;z-index:999;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.25);opacity:.8;transition:opacity .2s;-webkit-tap-highlight-color:transparent}
+  .back-top:hover{opacity:1}
+  .back-top:active{transform:scale(.92)}
+  body.large-mode header{padding-right:165px}
+  body.large-mode .back-top{width:56px;height:56px;font-size:27px;right:10px;top:12px}
+  @media (max-width:640px){header{padding-right:118px}}
+  @media (max-width:640px){.back-top{top:10px}}
+  /* ===== AI 助手（本地智能版） ===== */
+  .ai-fab{position:fixed;right:70px;top:12px;width:52px;height:52px;border-radius:50%;border:none;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:24px;cursor:pointer;z-index:998;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(99,102,241,.45);-webkit-tap-highlight-color:transparent}
+  .ai-fab:active{transform:scale(.92)}
+  body.large-mode .ai-fab{width:62px;height:62px;font-size:28px;right:74px;top:10px}
+  @media (max-width:640px){.ai-fab{right:66px;top:10px}}
+  .ai-chat{width:92vw;max-width:480px;height:76vh;max-height:640px;display:flex;flex-direction:column;border-radius:14px;overflow:hidden}
+  .ai-chat-head{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:10px 14px;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:space-between;flex:none}
+  .ai-chat-head button{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1}
+  .ai-chat-msgs{flex:1;overflow-y:auto;padding:12px;background:#f7f8fb;display:flex;flex-direction:column;gap:8px}
+  .ai-msg{max-width:86%;padding:8px 11px;border-radius:12px;font-size:14px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+  .ai-msg.user{align-self:flex-end;background:#6366f1;color:#fff;border-bottom-right-radius:3px}
+  .ai-msg.bot{align-self:flex-start;background:#fff;color:#223;border:1px solid #e5e7ef;border-bottom-left-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .ai-chips{flex:none;display:flex;gap:6px;padding:8px 10px;background:#fff;border-top:1px solid #eef0f5;overflow-x:auto}
+  .ai-chip{flex:none;font-size:12px;color:#4f46e5;background:#eef0ff;border:none;border-radius:20px;padding:5px 11px;cursor:pointer;white-space:nowrap}
+  .ai-chip:active{background:#e0e4ff}
+  .ai-chat-in{flex:none;display:flex;gap:8px;padding:10px;background:#fff;border-top:1px solid #eef0f5}
+  .ai-chat-in input{flex:1;border:1px solid #d5d9e5;border-radius:20px;padding:9px 14px;font-size:15px;outline:none}
+  .ai-chat-in button{flex:none;border:none;border-radius:20px;background:#6366f1;color:#fff;padding:0 18px;font-size:15px;cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <h1>📒 智能对账单 <span id="appVersionBadge" class="version-badge"></span></h1>
+  <p>只需填好 日期、名称、数量、单价，自动生成对账单：货款明细（按月小计/年度总计）+ 付款流水 + 退货记录 + 总账，一键导出 Excel。</p>
+</header>
+
+<main>
+  <details class="help" open>
+    <summary>📖 使用说明（点开看）</summary>
+    <div class="help-body">
+      1. 先填好顶部的「甲方 / 乙方 / 期初余额」；<br>
+      2. 在「货款明细」里逐行填写，或点「批量粘贴」从 Excel/微信一次性贴入多行（每行：日期 名称 数量 单价 单位 发货单号 备注，Tab 或逗号分隔）；<br>
+      3. 「金额 = 数量 × 单价」自动计算，按月份自动出小计、按年份出总计；<br>
+      4. 付款、退货同样录入；「总账」页自动汇总余额；<br>
+      5. 点底部「导出 Excel」生成 .xlsx 文件，可直接发微信；「打印」可打印全部表单。<br>
+      <b>多客户</b>：顶部可「＋新建客户」切换账目（甲乙方留空、由你填写，各客户互不影响）；<br>
+      <b>数据自动保存在本浏览器中，下次打开还在</b>（清浏览器缓存会丢失，重要数据请导出 Excel 备份）。
+    </div>
+  </details>
+
+  <section class="card settings">
+    <div class="customer-bar">
+      <span class="customer-label">👥 当前客户（乙方）</span>
+      <div class="customer-search">
+        <input id="customerSearch" type="text" placeholder="🔍 搜索客户：输入一个字自动跳出" autocomplete="off">
+        <div id="customerResultBox" class="customer-result"></div>
+      </div>
+      <button id="addCustomerBtn" class="primary">＋ 新建客户</button>
+      <button id="renameCustomerBtn">✏️ 重命名</button>
+      <button id="deleteCustomerBtn" class="danger">🗑 删除</button>
+      <span class="customer-tip">新建客户后甲方、乙方都留空，由你填写；各客户账目互相独立，切换互不影响。</span>
+    </div>
+    <div class="field"><label>甲方（供货方）</label><input id="partyA" placeholder="如：某某公司"></div>
+    <div class="field"><label>乙方（购货方）</label><input id="partyB" placeholder="如：李四"></div>
+    <div class="field"><label>期初余额（如 2022 年底余额）</label><input id="opening" type="number" step="0.01" placeholder="如 333756"></div>
+    <div class="field"><label>期初备注</label><input id="openingNote" placeholder="如：2023年初"></div>
+    <div class="field"><label>对账截止说明（选填）</label><input id="cutoffNote" placeholder="如：2025年10月15日止"></div>
+    <label class="lg-toggle"><input type="checkbox" id="largeMode"> 🔍 大字模式（字更大、按钮更好点，适合老花眼）</label>
+    <label class="lg-toggle"><input type="checkbox" id="autoPrice" checked> 💰 输入名称自动带出单价并跳到单价框（不想要可关掉）</label>
+  </section>
+
+  <nav class="tabs">
+    <button data-tab="goods" class="active">📦 货款明细</button>
+    <button data-tab="payments">💰 付款流水</button>
+    <button data-tab="returns">↩️ 退货记录</button>
+    <button data-tab="summary">📊 总账</button>
+  </nav>
+
+  <!-- 货款明细 -->
+  <section id="tab-goods" class="tab active">
+    <div class="card">
+      <div class="toolbar">
+        <button id="pickNameGoods" class="pick-name">📇 选名称</button>
+        <button id="pasteGoods">📋 批量粘贴</button>
+        <button id="clearGoods" class="danger">清空货款</button>
+        <span class="hint">数量/单价任意一项留空则该行不计入小计；备注可写「余量16付」「要配脚」等说明。</span>
+      </div>
+      <div class="table-wrap"><table class="editor" id="goodsEditor"></table></div>
+      <button id="addGoods" class="add-row-bottom">＋ 添加一行</button>
+      <div class="preview" id="goodsPreview"></div>
+    </div>
+  </section>
+
+  <!-- 付款 -->
+  <section id="tab-payments" class="tab">
+    <div class="card">
+      <div class="toolbar">
+        <button id="pastePayments">📋 批量粘贴</button>
+        <button id="clearPayments" class="danger">清空付款</button>
+        <span class="hint">付款流水：日期 + 付款金额（备注选填）。余额列会自动累计。</span>
+      </div>
+      <div class="table-wrap"><table class="editor" id="paymentsEditor"></table></div>
+      <button id="addPayment" class="add-row-bottom">＋ 添加一行</button>
+      <div class="preview" id="paymentsPreview"></div>
+    </div>
+  </section>
+
+  <!-- 退货 -->
+  <section id="tab-returns" class="tab">
+    <div class="card">
+      <div class="toolbar">
+        <button id="pickNameReturns" class="pick-name">📇 选名称</button>
+        <button id="pasteReturns">📋 批量粘贴</button>
+        <button id="clearReturns" class="danger">清空退货</button>
+        <span class="hint">退货记录：日期 + 名称 + 数量 + 单价，金额自动计算，底部自动出「退货共计」。</span>
+      </div>
+      <div class="table-wrap"><table class="editor" id="returnsEditor"></table></div>
+      <button id="addReturn" class="add-row-bottom">＋ 添加一行</button>
+      <div class="preview" id="returnsPreview"></div>
+    </div>
+  </section>
+
+  <!-- 总账 -->
+  <section id="tab-summary" class="tab">
+    <div class="card">
+      <div class="preview" id="summaryPreview"></div>
+      <p style="font-size:12px;color:#889;margin-top:10px">公式：期末余额 = 期初余额 + 累计总货款 − 总付款 − 总退货（累计总货款 = 各期货款合计，不含期初；应收余额 = 期初余额 + 累计总货款）</p>
+    </div>
+  </section>
+
+  <div id="dataStatus" style="text-align:center;font-size:12px;color:#667;padding:8px 16px 0;background:#fff">…</div>
+  <!-- 导入撤销条（导入后出现，可一键回退到导入前） -->
+  <div id="undoBar" class="undo-bar" style="display:none">
+    <span>↩️ 导入完成</span>
+    <button id="undoBtn" class="primary" style="padding:6px 12px;font-size:13px">撤销本次导入</button>
+    <button id="undoClose" style="padding:6px 10px;font-size:13px" aria-label="关闭">✕</button>
+  </div>
+  <div class="actions">
+    <button id="importXlsx" title="导入 Excel 文件">📥 导入</button>
+    <button id="exportXlsx" class="primary" title="导出 Excel 文件">⬇️ 导出</button>
+    <button id="printBtn" title="打印对账单">🖨️ 打印</button>
+    <button id="undoBtn" title="恢复最近一次误删的行" disabled>↩️ 撤销</button>
+    <button id="statsBtn" title="销售统计">📊 统计</button>
+    <button id="checkUpdate" title="检查更新">🔄 更新</button>
+    <button id="resetAll" class="danger" title="清空当前客户全部数据">🗑️ 清空</button>
+    <input type="file" id="importFile" accept=".xlsx" style="display:none">
+  </div>
+</main>
+
+<div id="printArea"></div>
+
+<!-- 批量粘贴弹窗 -->
+<div class="modal-mask" id="pasteModal">
+  <div class="modal">
+    <h3>批量粘贴</h3>
+    <p style="font-size:12px;color:#667;margin-bottom:8px">每行一条，列之间用 Tab 或逗号分隔，按下面顺序填（多余的列可空着）：</p>
+    <div id="pasteHint" style="font-size:12px;color:#1f6feb;background:#f2f7ff;padding:6px 10px;border-radius:6px;margin-bottom:8px;"></div>
+    <textarea id="pasteText" placeholder="例如：&#10;2023.3.23	示例产品A	760	2.6	付	0010501	&#10;2023.3.23	示例产品B	100	3.1	付		"></textarea>
+    <div class="modal-actions">
+      <button id="pasteCancel">取消</button>
+      <button id="pasteOk" class="primary">确定添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- 导入 Excel 弹窗 -->
+<div class="modal-mask" id="importModal">
+  <div class="modal">
+    <h3>📥 导入 Excel 对账单</h3>
+    <div id="importSummary" style="font-size:13px;color:#334;line-height:1.9;margin:6px 0 12px;"></div>
+    <div style="font-size:13px;margin-bottom:10px">
+      <label style="display:block;padding:6px 0;cursor:pointer"><input type="radio" name="importMode" value="append" checked> 追加合并（保留现有数据，重复记录自动跳过）</label>
+      <label style="display:block;padding:6px 0;cursor:pointer"><input type="radio" name="importMode" value="overwrite"> 覆盖现有数据（清空后用导入文件替换全部数据）</label>
+    </div>
+    <div id="importCompare" style="display:none"></div>
+    <div class="modal-actions">
+      <button id="importCancel">取消</button>
+      <button id="importOk" class="primary">确认导入</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 选名称弹窗（全程序产品搜索 + 手动新增产品，老年友好免打字） -->
+<div class="modal-mask" id="namePickerModal">
+  <div class="modal">
+    <h3>📇 选常用名称</h3>
+    <p style="font-size:13px;color:#667;margin-bottom:4px">包含所有客户录过的产品名，输入一个字就能搜，点名称填到最新一行（带出的单价可改）。</p>
+    <input id="namePickerSearch" class="name-picker-search" type="text" placeholder="🔍 输入一个字搜索（如：脚、KT）" autocomplete="off">
+    <div id="namePickerGrid" class="name-picker-grid"></div>
+    <div id="addProductForm" class="add-product-form" style="display:none">
+      <p style="font-size:13px;color:#667;margin-bottom:6px">新增常用产品（以后搜索/点选都能找到）：</p>
+      <input id="addProductName" class="name-picker-search" type="text" placeholder="产品名称（必填）" autocomplete="off">
+      <input id="addProductPrice" class="name-picker-search" type="text" inputmode="decimal" placeholder="单价（可留空）" autocomplete="off">
+      <div class="modal-actions" style="justify-content:center">
+        <button id="addProductOk" class="primary">保存</button>
+        <button id="addProductCancel">返回</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="namePickerAdd">➕ 新增产品</button>
+      <button id="namePickerCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI 助手弹窗（本地智能：读全部账单 + 答使用问题 + 帮操作） -->
+<div class="modal-mask" id="aiChatModal">
+  <div class="modal ai-chat">
+    <div class="ai-chat-head"><span>💬 智能小助手</span><button id="aiChatClose" aria-label="关闭">✕</button></div>
+    <div id="aiChatMsgs" class="ai-chat-msgs"></div>
+    <div class="ai-chips" id="aiChatChips"></div>
+    <div class="ai-chat-in">
+      <input id="aiChatInput" type="text" placeholder="问我问题，或让我帮你操作…" autocomplete="off">
+      <button id="aiChatSend">发送</button>
+    </div>
+  </div>
+</div>
+
+<!-- 销售统计弹窗（年/月销售柱状图 + 产品排行，纯本地 SVG 不联网） -->
+<div class="modal-mask" id="statsModal">
+  <div class="modal stats-modal">
+    <div class="ai-chat-head"><span>📊 销售统计</span><button id="statsClose" aria-label="关闭">✕</button></div>
+    <div style="padding:10px 12px;display:flex;gap:10px;flex-wrap:wrap;border-bottom:1px solid #eef1f6">
+      <select id="statsCust" style="flex:1;min-width:130px;padding:8px;border:1px solid #d5d9e2;border-radius:6px;font-size:14px"></select>
+      <select id="statsYear" style="flex:1;min-width:120px;padding:8px;border:1px solid #d5d9e2;border-radius:6px;font-size:14px"></select>
+    </div>
+    <div id="statsBody" style="padding:12px;font-size:13px;color:#334;max-height:64vh;overflow:auto;line-height:1.75"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ================= 工具函数 ================= */
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toNum(v){ const n = parseFloat(String(v == null ? '' : v).replace(/[^\d.\-]/g, '')); return isFinite(n) ? n : null; }
+function round2(n){ return Math.round(n * 100) / 100; }
+function fmt(n){ if(n == null || !isFinite(n)) return ''; return String(round2(n)); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function parseDateParts(s){
+  if(s == null) return null;
+  const t = String(s).trim();
+  if(!t) return null;
+  const m = t.match(/(\d{4})[.\-\/年](\d{1,2})(?:[.\-\/月](\d{1,2}))?/);
+  if(!m) return null;
+  return { y: +m[1], mo: m[2] ? +m[2] : null, d: m[3] ? +m[3] : null };
+}
+// 按日期升序原地排序（显示/导出统一用）：日期字符串转数值键（年*1e6+月*1e4+日*1e2），
+// 无日期/解析失败放最后（保持原相对顺序）。直接排序传入数组（state.goods 等），
+// 保证编辑表/预览/导出/打印看到的顺序一致。调用点：导入合并后、新增行后。
+function sortByDate(rows){
+  const key = (r) => {
+    const p = parseDateParts(r && r.date);
+    if(!p) return null;
+    return p.y * 1e6 + (p.mo || 0) * 1e4 + (p.d || 0) * 1e2;
+  };
+  rows.sort((a, b) => {
+    const ka = key(a), kb = key(b);
+    if(ka == null && kb == null) return 0;
+    if(ka == null) return 1;
+    if(kb == null) return -1;
+    return ka - kb;
+  });
+  return rows;
+}
+/* ================= 销售统计 ================= */
+// 销售额 = 货款合计 − 退货合计（同一范围）；期初/付款不算（往来款）。
+// custs：客户数组（null=全部）；year：null=全部年份，否则只统计该年。
+function salesStats(custs, year){
+  const list = custs || customerList().filter(c => c.partyB);
+  const yMap = new Map(), retMap = new Map(), mMap = new Map();
+  let noDate = 0;
+  for(const c of list){
+    for(const r of c.goods){
+      const amt = rowAmount(r);
+      if(amt == null) continue;
+      const d = parseDateParts(r.date);
+      const y = d ? d.y : null;
+      if(y == null) noDate++;
+      else{
+        if(!yMap.has(y)) yMap.set(y, 0);
+        yMap.set(y, yMap.get(y) + amt);
+        if(year == null || y === year){
+          const mk = y + '-' + (d.mo == null ? 0 : d.mo);
+          if(!mMap.has(mk)) mMap.set(mk, 0);
+          mMap.set(mk, mMap.get(mk) + amt);
+        }
+      }
+    }
+    for(const r of c.returns){
+      const amt = rowAmount(r);
+      if(amt == null) continue;
+      const d = parseDateParts(r.date);
+      const y = d ? d.y : null;
+      if(y != null){
+        if(!retMap.has(y)) retMap.set(y, 0);
+        retMap.set(y, retMap.get(y) + amt);
+      }
+    }
+  }
+  const years = [...yMap.entries()].sort((a, b) => a[0] - b[0]).map(([y, amt]) => ({ y, amt: round2(amt), ret: round2(retMap.get(y) || 0) }));
+  const months = [];
+  if(year != null){
+    for(let mo = 1; mo <= 12; mo++){
+      const amt = mMap.get(year + '-' + mo) || 0;
+      if(amt > 0) months.push({ mo, amt: round2(amt) });
+    }
+    months.sort((a, b) => a.mo - b.mo);
+  }
+  return {
+    years, months,
+    total: round2(years.reduce((s, x) => s + x.amt, 0)),
+    retTotal: round2([...retMap.values()].reduce((s, x) => s + x, 0)),
+    noDate,
+  };
+}
+// 产品排行（按金额降序，前 20）：custs 客户范围；year/mo 可限定（null=不限）
+function salesProducts(custs, year, mo){
+  const list = custs || customerList().filter(c => c.partyB);
+  const map = new Map();
+  for(const c of list){
+    for(const r of c.goods){
+      const amt = rowAmount(r);
+      if(amt == null) continue;
+      const d = parseDateParts(r.date);
+      if(year != null && (!d || d.y !== year)) continue;
+      if(mo != null && (!d || d.mo !== mo)) continue;
+      const name = String(r.name || '').trim() || '(未命名)';
+      const e = map.get(name) || { count: 0, qty: 0, amt: 0 };
+      e.count++;
+      const q = toNum(r.qty); if(q != null) e.qty += q;
+      e.amt += amt;
+      map.set(name, e);
+    }
+  }
+  return [...map.entries()].sort((a, b) => b[1].amt - a[1].amt || b[1].count - a[1].count).slice(0, 20)
+    .map(([name, e]) => ({ name, count: e.count, qty: round2(e.qty), amt: round2(e.amt) }));
+}
+// 手写 SVG 柱状图（不引库不联网）：bars=[{label, value, arg?}]，点击柱调用 onClick(arg 或 label)
+function barChartHTML(bars, onClick){
+  const W = 620, H = 215, padL = 52, padB = 30, padT = 24;
+  const max = Math.max(...bars.map(b => b.value), 1);
+  const n = bars.length || 1;
+  const step = (W - padL - 10) / n;
+  const bw = Math.min(60, step * 0.62);
+  const colors = ['#1f6feb', '#2da44e', '#bf8700', '#b35900', '#8250df'];
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;font-size:11px">';
+  for(let i = 0; i <= 4; i++){
+    const y = padT + (H - padT - padB) * i / 4;
+    const v = max * (4 - i) / 4;
+    s += '<line x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - 8) + '" y2="' + y.toFixed(1) + '" stroke="#eef0f4" stroke-width="1"/>';
+    s += '<text x="' + (padL - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end" fill="#99a">' + fmt(v) + '</text>';
+  }
+  bars.forEach((b, i) => {
+    const x = padL + step * i + (step - bw) / 2;
+    const bh = (H - padT - padB) * Math.max(b.value, 0) / max;
+    const y = H - padB - bh;
+    const arg = b.arg != null ? b.arg : b.label;
+    s += '<rect class="stats-bar-bar" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(bh, 0).toFixed(1) + '" rx="3" fill="' + colors[i % colors.length] + '" onclick=\'' + onClick + '(' + JSON.stringify(arg) + ')\'/>';
+    if(bh > 14){
+      s += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (y - 4).toFixed(1) + '" text-anchor="middle" fill="#334" font-weight="700">' + fmt(b.value) + '</text>';
+    }
+    s += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - padB + 14) + '" text-anchor="middle" fill="#667">' + esc(String(b.label)) + '</text>';
+  });
+  s += '</svg>';
+  return s;
+}
+function rowAmount(r){
+  const locked = toNum(r.amt); // 导入时锁定的原表金额列值（个别行手填值与数量×单价不一致）
+  if(locked != null) return round2(locked);
+  const q = toNum(r.qty), p = toNum(r.price);  if(q == null || p == null) return null;
+  return round2(q * p);
+}
+
+/* ================= 状态 ================= */
+const APP_VERSION = 'v1.0';
+const LS_KEY = 'zhineng-duizhang-v1';
+// 多客户容器：localStorage 存 { v:2, current:客户id, customers:{ id: 客户state } }
+// state 始终 = 当前客户对象（同一引用），既有业务代码全部不变
+let db = { v: 2, current: null, customers: {} };
+let state = { partyA: '', partyB: '', opening: '', openingNote: '', cutoffNote: '', goods: [], payments: [], returns: [] };
+function newCustomerObj(name){
+  return { id: uid(), partyA: '', partyB: name || '', opening: '', openingNote: '', cutoffNote: '', goods: [], payments: [], returns: [] };
+}
+function customerList(){ return Object.keys(db.customers).map(id => db.customers[id]); }
+function currentCustomer(){ return db.customers[db.current] || null; }
+function customerDisplay(c){ return (c && c.partyB) ? c.partyB : '（未命名客户）'; }
+function freshDb(){
+  const c = newCustomerObj('');
+  return { v: 2, current: c.id, customers: { [c.id]: c } };
+}
+function defaultRow(){ return { id: uid(), date:'', name:'', qty:'', price:'', unit:'付', waybill:'', note:'' }; }
+
+// ===== 产品库说明：内置产品库为空，名称联想/选名称只基于用户自己录入过的历史 + 用户在弹窗里新增的产品（localStorage）=====
+const DEFAULT_PRODUCTS = [];
+
+/* 自定义产品库：内置历史账单预置产品（DEFAULT_PRODUCTS，所有客户通用）+ 用户在弹窗里人为新增的（localStorage），同名合并单价取最高 */
+function getCustomProducts(){
+  const list = [];
+  const seen = new Set();
+  for(const p of DEFAULT_PRODUCTS || []){
+    const n = String(p.name || '').trim();
+    const k = n.toLowerCase();
+    if(!k || seen.has(k)) continue;
+    seen.add(k);
+    list.push({ name: n, price: p.price != null ? String(p.price) : '' });
+  }
+  try{
+    const raw = localStorage.getItem('zhineng-custom-products');
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        for(const x of arr){
+          const n = String(x.name || '').trim();
+          const k = n.toLowerCase();
+          if(!k) continue;
+          const px = x.price != null ? toNum(x.price) : null;
+          if(seen.has(k)){
+            const ex = list.find(p => String(p.name).toLowerCase() === k);
+            const exx = ex && ex.price ? toNum(ex.price) : null;
+            if(ex && px != null && (exx == null || px > exx)) ex.price = String(x.price); // 同名取最高单价
+          } else {
+            seen.add(k);
+            list.push({ name: n, price: x.price != null ? String(x.price) : '' });
+          }
+        }
+      }
+    }
+  }catch(_){}
+  return list;
+}
+function saveCustomProducts(list){
+  try{ localStorage.setItem('zhineng-custom-products', JSON.stringify(list)); }catch(_){}
+}
+/* 老年友好：常用名称库（统计**所有客户**的货款+退货 + 自定义产品：{key(小写):{name, price, count, bestCount, names}}），
+   供选名称弹窗与单价自动记忆使用；按出现频率排序，单价取历史最高，人为可改 */
+function nameLib(){
+  const lib = {};
+  const rows = [];
+  try{
+    for(const cid of Object.keys(db.customers || {})){
+      const c = db.customers[cid];
+      if(!c) continue;
+      rows.push(...(c.goods || []), ...(c.returns || []));
+    }
+  }catch(_){}
+  for(const r of rows){
+    const n = String(r.name || '').trim();
+    if(!n) continue;
+    const key = n.toLowerCase(); // 大小写归一：同一产品名不同写法视为相同
+    if(!lib[key]) lib[key] = { name: n, price:'', count:0, bestCount:0, names: {} };
+    lib[key].count++; // 出现频率：录入次数越多排越前
+    lib[key].names[n] = (lib[key].names[n] || 0) + 1;
+    if(lib[key].names[n] > lib[key].bestCount){ lib[key].bestCount = lib[key].names[n]; lib[key].name = n; } // 显示/填入用出现最多的写法
+    if(r.price && toNum(r.price) != null){
+      const p = toNum(r.price);
+      const cur = lib[key].price ? toNum(lib[key].price) : null;
+      if(cur == null || p > cur) lib[key].price = String(r.price); // 单价记忆取历史最高（人为填进后仍可改）
+    }
+  }
+  for(const cp of getCustomProducts()){ // 人为新增的产品：count 0 排在统计产品之后
+    const n = String(cp.name || '').trim();
+    if(!n) continue;
+    const key = n.toLowerCase();
+    if(!lib[key]) lib[key] = { name: n, price:'', count:0, bestCount:0, names: {} };
+    if(cp.price && toNum(cp.price) != null){
+      const p = toNum(cp.price);
+      const cur = lib[key].price ? toNum(lib[key].price) : null;
+      if(cur == null || p > cur) lib[key].price = String(cp.price);
+    }
+  }
+  return lib;
+}
+let __namePickerOnPick = null; // 选名称弹窗当前点选回调（供「新增产品」保存后重开弹窗复用）
+/* ================= 名称输入实时联想 =================
+   在「名称及规格」输入框打字时，下方弹出包含该字的产品（来自 nameLib：所有客户历史+内置产品库，
+   按出现频率从多到少排，同频率按拼音）。点选 → 填入名称并带出单价；继续打字 → 列表实时过滤；
+   不选继续输入也完全可以（联想只是辅助）。 */
+let __ns = null; // { box, input, row, onPick, keys, sel }
+function nameSuggestBox(){
+  if(__ns && __ns.box) return __ns.box;
+  const box = document.createElement('div');
+  box.className = 'name-suggest';
+  box.style.display = 'none';
+  document.body.appendChild(box);
+  if(!__ns) __ns = {};
+  __ns.box = box;
+  // 点选：mousedown 先于 blur 执行，避免输入框失焦导致联想先关
+  box.addEventListener('mousedown', e => e.preventDefault());
+  box.addEventListener('click', e => {
+    const item = e.target.closest('.ns-item[data-name]');
+    if(!item || !__ns) return;
+    const name = item.dataset.name, price = item.dataset.price || '';
+    nameSuggestHide();
+    if(__ns.onPick) __ns.onPick(name, price);
+  });
+  return box;
+}
+function nameSuggestShow(input, row, onPick){
+  const q = String(row.name || '').trim();
+  const box = nameSuggestBox();
+  if(!q){ nameSuggestHide(); return; }
+  const ql = q.toLowerCase();
+  const lib = nameLib();
+  const keys = Object.keys(lib)
+    .filter(k => k.includes(ql))
+    .sort((a, b) => (lib[b].count - lib[a].count) || a.localeCompare(b, 'zh'))
+    .slice(0, 12);
+  if(!keys.length){ nameSuggestHide(); return; }
+  __ns.input = input; __ns.row = row; __ns.onPick = onPick; __ns.keys = keys; __ns.sel = -1;
+  box.innerHTML = keys.map((k, i) => {
+    const e = lib[k];
+    return '<div class="ns-item" data-name="' + esc(e.name) + '" data-price="' + esc(e.price || '') + '" data-i="' + i + '">' +
+      '<span class="ns-name">' + esc(e.name) + '</span>' +
+      (e.price ? '<span class="ns-price">¥' + esc(e.price) + '</span>' : '') +
+      (e.count ? '<span class="ns-count">×' + e.count + '</span>' : '') +
+      '</div>';
+  }).join('') + '<div class="ns-tip">↑↓ 选择，Enter 确认；继续打字可自己输入</div>';
+  // 定位：输入框下方，窄屏贴左缘，避免超出屏幕
+  const r = input.getBoundingClientRect();
+  const bw = Math.min(340, Math.max(200, r.width));
+  let left = r.left;
+  if(left + bw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - bw - 8);
+  box.style.left = left + 'px';
+  box.style.top = (r.bottom + 4) + 'px';
+  box.style.width = bw + 'px';
+  box.style.display = 'block';
+  box.scrollTop = 0;
+  // 滚动/缩放时关闭，避免定位错位
+  if(!__ns._onScroll){ __ns._onScroll = () => nameSuggestHide(); window.addEventListener('scroll', __ns._onScroll, true); }
+}
+function nameSuggestHide(){
+  if(!__ns || !__ns.box) return;
+  __ns.box.style.display = 'none';
+  if(__ns._onScroll){ window.removeEventListener('scroll', __ns._onScroll, true); __ns._onScroll = null; }
+}
+function nameSuggestPick(i){
+  if(!__ns || !__ns.keys || i < 0 || i >= __ns.keys.length) return;
+  const lib = nameLib();
+  const k = __ns.keys[i];
+  const e = lib[k];
+  nameSuggestHide();
+  if(__ns.onPick) __ns.onPick(e.name, e.price || '');
+}
+function nameSuggestMove(d){
+  if(!__ns || !__ns.keys || !__ns.box) return;
+  __ns.sel = Math.max(0, Math.min(__ns.keys.length - 1, __ns.sel + d));
+  [...__ns.box.querySelectorAll('.ns-item')].forEach((el, i) => el.classList.toggle('sel', i === __ns.sel));
+  const el = __ns.box.querySelector('.ns-item[data-i="' + __ns.sel + '"]');
+  if(el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+}
+/* 打开「选常用名称」弹窗：按出现频率从多到少排大按钮，搜索框输入一个字即时过滤，点选后回调 (name, price) */
+function openNamePicker(onPick){
+  const modal = document.getElementById('namePickerModal');
+  const grid = document.getElementById('namePickerGrid');
+  const search = document.getElementById('namePickerSearch');
+  if(!modal || !grid) return;
+  __namePickerOnPick = onPick;
+  const addForm = document.getElementById('addProductForm');
+  if(addForm) addForm.style.display = 'none'; // 收起「新增产品」表单（重开时回到列表）
+  if(search) search.style.display = '';
+  grid.style.display = '';
+  const lib = nameLib();
+  const allKeys = Object.keys(lib).sort((a,b) => (lib[b].count - lib[a].count) || a.localeCompare(b, 'zh')); // 频率优先，同频率按拼音
+  function render(filter){
+    const q = String(filter || '').trim().toLowerCase();
+    const keys = q ? allKeys.filter(k => k.includes(q)) : allKeys; // 输入一个字就能搜到，不用翻找
+    if(keys.length){
+      grid.innerHTML = keys.map(k =>
+        '<button data-name="' + esc(lib[k].name) + '">' + esc(lib[k].name) +
+        (lib[k].price ? '<span class="np-price">单价 ' + esc(lib[k].price) + '</span>' : '') +
+        '</button>'
+      ).join('');
+    } else if(!allKeys.length){
+      grid.innerHTML = '<div class="name-picker-empty">还没有记住任何名称。先在「货款」里录一两笔（输入名称和单价），下次就能直接点选。</div>';
+    } else {
+      grid.innerHTML = '<div class="name-picker-empty">没有找到包含「' + esc(q) + '」的名称</div>';
+    }
+  }
+  render('');
+  if(search){
+    search.value = '';
+    search.oninput = () => render(search.value);
+    setTimeout(() => { try{ search.focus(); }catch(_){} }, 60); // 弹窗打开即聚焦，直接打字搜索
+  }
+  grid.onclick = (e) => {
+    const btn = e.target.closest('[data-name]');
+    if(!btn) return;
+    modal.classList.remove('show');
+    const meta = lib[String(btn.dataset.name || '').toLowerCase()];
+    onPick && onPick(btn.dataset.name, meta && meta.price ? meta.price : '');
+  };
+  modal.classList.add('show');
+}
+/* ================= 销售统计弹窗 ================= */
+let __statsMonth = null; // 当前钻取到的月份（null=只看年份/全部）
+function openStats(){
+  flushInputs(); // 统计基于最新输入
+  const modal = document.getElementById('statsModal');
+  const custSel = document.getElementById('statsCust');
+  const yearSel = document.getElementById('statsYear');
+  custSel.innerHTML = '<option value="">全部客户</option>' + customerList().filter(c => c.partyB)
+    .map(c => '<option value="' + esc(c.id) + '">' + (c.no ? c.no + ' ' : '') + esc(c.partyB) + '</option>').join('');
+  const ys = [...new Set(customerList().flatMap(c => c.goods.map(r => { const d = parseDateParts(r.date); return d ? d.y : null; })))].filter(Boolean).sort((a, b) => b - a);
+  yearSel.innerHTML = '<option value="">全部年份</option>' + ys.map(y => '<option value="' + y + '">' + y + ' 年</option>').join('');
+  __statsMonth = null;
+  modal.classList.add('show');
+  renderStats();
+}
+function statsScope(){
+  const cid = document.getElementById('statsCust').value;
+  return cid ? customerList().filter(c => c.id === cid) : customerList().filter(c => c.partyB);
+}
+function statsSelCust(){ __statsMonth = null; renderStats(); }
+function statsSelYear(){ __statsMonth = null; renderStats(); }
+function statsPickYear(y){
+  document.getElementById('statsYear').value = String(y);
+  __statsMonth = null;
+  renderStats();
+}
+function statsPickMonth(mo){
+  __statsMonth = __statsMonth === mo ? null : mo; // 再点一次取消钻取
+  renderStats();
+}
+function renderStats(){
+  const body = document.getElementById('statsBody');
+  if(!body) return;
+  const cid = document.getElementById('statsCust').value;
+  const year = document.getElementById('statsYear').value ? parseInt(document.getElementById('statsYear').value, 10) : null;
+  const custs = statsScope();
+  const cObj = cid ? customerList().find(c => c.id === cid) : null;
+  const label = cObj ? ('客户「' + customerDisplay(cObj) + '」') : ('全部 ' + custs.length + ' 个客户');
+  const st = salesStats(custs, year);
+  let h = '';
+  h += '<div class="stats-title">' + label + '　年销售额（共 ' + aiMoney(st.total) + ' 元）</div>';
+  h += '<div class="stats-tip" style="margin-bottom:8px">销售额 = 货款合计 − 退货合计。点年份柱子看该年每月，点月份柱子看当月产品（再点一次取消）。</div>';
+  if(st.years.length){
+    h += '<div class="stats-chart">' + barChartHTML(st.years.map(x => ({ label: String(x.y), value: x.amt, arg: x.y })), 'statsPickYear') + '</div>';
+    if(st.retTotal > 0) h += '<div class="stats-tip">全部年份退货合计 ' + aiMoney(st.retTotal) + ' 元（已从销售额扣除）。</div>';
+    if(st.noDate) h += '<div class="stats-tip">有 ' + st.noDate + ' 笔货款没有日期，未计入年份统计。</div>';
+  } else {
+    h += '<div class="stats-tip">还没有货款记录，统计不出来。</div>';
+  }
+  if(year != null){
+    h += '<div class="stats-title">' + year + ' 年每月销售额</div>';
+    if(st.months.length){
+      h += '<div class="stats-chart">' + barChartHTML(st.months.map(x => ({ label: x.mo + '月', value: x.amt, arg: x.mo })), 'statsPickMonth') + '</div>';
+      const yr = st.years.find(x => x.y === year);
+      if(yr && yr.ret > 0) h += '<div class="stats-tip">' + year + ' 年退货合计 ' + aiMoney(yr.ret) + ' 元（已从销售额扣除）。</div>';
+    } else {
+      h += '<div class="stats-tip">该年没有货款记录。</div>';
+    }
+  }
+  const prods = (__statsMonth != null && year != null) ? salesProducts(custs, year, __statsMonth) : salesProducts(custs, year, null);
+  const pLabel = (__statsMonth != null && year != null) ? (year + ' 年 ' + __statsMonth + ' 月') : (year != null ? year + ' 年' : '全部年份');
+  h += '<div class="stats-title">' + pLabel + ' 产品排行（按金额从高到低，前 20）</div>';
+  if(prods.length){
+    h += '<div>' + prods.map(p => '<div class="stats-prod"><span>' + esc(p.name) + '　×' + p.count + ' 次，数量 ' + aiMoney(p.qty) + '</span><b>' + aiMoney(p.amt) + ' 元</b></div>').join('') + '</div>';
+  } else {
+    h += '<div class="stats-tip">该范围没有产品记录。</div>';
+  }
+  body.innerHTML = h;
+}
+function focusLastRow(tableEl){
+  if(!tableEl) return;
+  const inputs = tableEl.querySelectorAll('tbody tr:last-child input');
+  if(inputs.length){
+    try{ inputs[0].focus(); inputs[0].scrollIntoView({ block:'center' }); }catch(_){}
+  }
+}
+/* 设置开关：输入名称是否自动带出单价并跳到单价输入框（默认开，可在设置里关闭） */
+function autoPriceOn(){
+  try{ return localStorage.getItem('zhineng-auto-price') !== '0'; }catch(_){ return true; }
+}
+/* 聚焦表格最后一行（或指定行）的单价输入框，光标到末尾，方便直接改单价 */
+function focusPriceInput(tableEl){
+  if(!tableEl) return;
+  const tr = tableEl.querySelector('tbody tr:last-child');
+  if(!tr) return;
+  const pi = tr.querySelector('input[data-field="price"]');
+  if(pi){
+    try{
+      pi.focus();
+      if(pi.setSelectionRange) pi.setSelectionRange(pi.value.length, pi.value.length);
+      pi.scrollIntoView({ block:'center' });
+    }catch(_){}
+  }
+}
+function updateDataStatus(){
+  const el = document.getElementById('dataStatus');
+  if(!el) return;
+  el.textContent = '智能对账单 ' + APP_VERSION + ' ｜ 客户：' + customerDisplay(currentCustomer()) + ' ｜ 已记录：货款 ' + state.goods.length + ' 笔 ｜ 付款 ' + state.payments.length + ' 笔 ｜ 退货 ' + state.returns.length + ' 笔' + (state.opening ? ' ｜ 期初 ' + state.opening : '');
+  const badge = document.getElementById('appVersionBadge');
+  if(badge){
+    // 标题旁常驻版本徽章（每次发新版只需改 APP_VERSION）；App 内加显「程序」版本，区分内容/程序层
+    let apkV = '';
+    try {
+      if(window.AndroidBridge && typeof AndroidBridge.apkVersion === 'function') apkV = AndroidBridge.apkVersion();
+    } catch(_){}
+    badge.textContent = apkV ? (APP_VERSION + ' · 程序' + apkV) : APP_VERSION;
+  }
+}
+function defaultPayment(){ return { id: uid(), date:'', amount:'', note:'' }; }
+function defaultReturn(){ return { id: uid(), date:'', name:'', qty:'', price:'', unit:'付', note:'' }; }
+/* 客户固定编号：按当前顺序给无编号客户分配 01/02/…（已有编号的不动，保证固定；删除客户后空号不补） */
+function ensureCustomerNos(){
+  let n = 1;
+  for(const c of customerList()){
+    if(c.no && !isNaN(parseInt(c.no, 10))){ n = Math.max(n, parseInt(c.no, 10) + 1); }
+    else { c.no = String(n++).padStart(2, '0'); }
+  }
+}
+function save(){
+  try {
+    if(db.current && db.customers[db.current]) db.customers[db.current] = state; // 引用同步兜底
+    ensureCustomerNos(); // 给新客户补固定编号（已有编号不动）
+    localStorage.setItem(LS_KEY, JSON.stringify(db)); window.__lsFail = false;
+  }
+  catch(e){
+    if(!window.__lsFail){ window.__lsFail = true; try{ alert('警告：数据无法保存到本机（浏览器存储不可用），新录入的数据在关闭页面后会丢失！\n请尽快点「导出 Excel」保存留底。'); }catch(_){} }
+  }
+  updateDataStatus && updateDataStatus();
+}
+function load(){
+  let d = null;
+  try { const raw = localStorage.getItem(LS_KEY); if(raw) d = JSON.parse(raw); } catch(e){ d = null; }
+  if(d && d.v === 2 && d.customers && typeof d.customers === 'object'){
+    db = d;
+    const ids = Object.keys(db.customers);
+    if(!ids.length){ db = freshDb(); }
+    else {
+      if(!db.customers[db.current]) db.current = ids[0];
+      for(const id of ids){
+        const c = db.customers[id];
+        if(!Array.isArray(c.goods)) c.goods = [];
+        if(!Array.isArray(c.payments)) c.payments = [];
+        if(!Array.isArray(c.returns)) c.returns = [];
+      }
+    }
+  }
+  else if(d && typeof d === 'object' && Array.isArray(d.goods)){
+    // 旧格式（v1 单客户直存 state）自动迁移 → 包成第一个客户，数据不丢
+    const c = newCustomerObj(String(d.partyB || '').trim() || '客户1');
+    c.partyA = String(d.partyA || '').trim();
+    c.partyB = String(d.partyB || '').trim() || c.partyB;
+    c.opening = d.opening || ''; c.openingNote = d.openingNote || ''; c.cutoffNote = d.cutoffNote || '';
+    c.goods = d.goods.slice(); c.payments = Array.isArray(d.payments) ? d.payments.slice() : [];
+    c.returns = Array.isArray(d.returns) ? d.returns.slice() : [];
+    db = { v: 2, current: c.id, customers: { [c.id]: c } };
+  }
+  else { db = freshDb(); }
+  state = db.customers[db.current];
+  ensureCustomerNos(); // 给客户分配固定编号（已有编号不动）；load 后必跑一次并持久化，保证已有数据升级也出编号
+  // 存量数据按日期排好（导入/新增/粘贴都会排；这里兜底所有客户历史数据，打开即有序并持久化）
+  for(const id of Object.keys(db.customers)){
+    const c = db.customers[id];
+    try{ sortByDate(c.goods); sortByDate(c.payments); sortByDate(c.returns); }catch(_){}
+  }
+  try { save(); } catch(e){}
+}
+/* —— 客户切换（搜索式：输入一个字自动跳出包含该字的客户，点选切换） —— */
+function renderCustomerSelector(){
+  const inp = document.getElementById('customerSearch');
+  if(!inp) return;
+  const c = currentCustomer();
+  inp.value = (c && c.no ? c.no + ' ' : '') + (c ? customerDisplay(c) : '');
+}
+function customerSearchBox(q){
+  const box = document.getElementById('customerResultBox');
+  if(!box) return;
+  const qq = String(q || '').trim().toLowerCase();
+  const all = customerList().filter(c => c.partyB);
+  const list = qq ? all.filter(c => customerDisplay(c).toLowerCase().includes(qq) || String(c.no || '').includes(qq)) : all;
+  if(!list.length){
+    box.innerHTML = `<div class="cr-empty">没有找到包含「${esc(q)}」的客户，可点「＋ 新建客户」</div>`;
+    box.classList.add('show');
+    return;
+  }
+  box.innerHTML = list.map(c =>
+    `<div class="cr-item" data-cid="${c.id}" title="${esc(customerDisplay(c))}"><span class="cr-no">${c.no ? c.no + ' ' : ''}</span>${esc(customerDisplay(c))}</div>`
+  ).join('');
+  box.classList.add('show');
+}
+function hideCustomerSearch(){
+  const box = document.getElementById('customerResultBox');
+  if(box) box.classList.remove('show');
+}
+function bindCustomerSearch(){
+  const inp = document.getElementById('customerSearch');
+  const box = document.getElementById('customerResultBox');
+  if(!inp || !box) return;
+  inp.addEventListener('focus', () => customerSearchBox(inp.value));
+  inp.addEventListener('input', () => customerSearchBox(inp.value));
+  inp.addEventListener('keydown', e => {
+    if(e.key === 'Escape') hideCustomerSearch();
+    if(e.key === 'Enter'){
+      const first = box.querySelector('.cr-item');
+      if(first){ hideCustomerSearch(); selectCustomer(first.dataset.cid); renderCustomerSelector(); }
+    }
+  });
+  box.addEventListener('mousedown', e => e.preventDefault()); // 点选时不让 input 失焦先关闭
+  box.addEventListener('click', e => {
+    const item = e.target.closest('.cr-item[data-cid]');
+    if(!item) return;
+    hideCustomerSearch();
+    selectCustomer(item.dataset.cid);
+    renderCustomerSelector(); // 即使点击的是当前客户也恢复完整显示
+  });
+  document.addEventListener('click', e => {
+    if(!e.target.closest('.customer-search')) hideCustomerSearch();
+  });
+}
+function syncSettingsInputs(){
+  ['partyA','partyB','opening','openingNote','cutoffNote'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = state[id] != null ? state[id] : '';
+  });
+}
+function selectCustomer(id){
+  if(!db.customers[id] || id === db.current) return;
+  flushInputs(); // 先保住当前客户刚输入但事件未派发的值，再切换
+  db.current = id; state = db.customers[id];
+  syncSettingsInputs(); renderCustomerSelector();
+  rerenderEditors(); // 编辑器表格重渲染为当前客户的数据（防止残留旧客户表格）
+  renderAllPreviews(); save();
+}
+function addCustomerFlow(){
+  const name = (prompt('请输入新客户名称（即乙方/购货方）：') || '').trim();
+  if(!name) return;
+  if(customerList().some(c => c.partyB === name) && !confirm('已存在同名客户「' + name + '」，仍然新建？')) return;
+  const c = newCustomerObj(name);
+  db.customers[c.id] = c; db.current = c.id; state = c;
+  save(); renderCustomerSelector(); syncSettingsInputs();
+  rerenderEditors(); // 新客户空白表格立即渲染
+  renderAllPreviews();
+  const pb = document.getElementById('partyB'); if(pb) pb.focus();
+}
+function renameCustomerFlow(){
+  const c = currentCustomer(); if(!c) return;
+  const name = (prompt('新客户名称（乙方）：', c.partyB || '') || '').trim();
+  if(!name || name === c.partyB) return;
+  if(customerList().some(x => x.id !== c.id && x.partyB === name) && !confirm('已存在同名客户「' + name + '」，仍然改名？')) return;
+  c.partyB = name;
+  save(); renderCustomerSelector(); syncSettingsInputs();
+}
+function deleteCustomerFlow(){
+  const c = currentCustomer(); if(!c) return;
+  if(!confirm('确定删除客户「' + customerDisplay(c) + '」的全部账目？\n（货款/付款/退货/期初将一并删除，无法恢复！）')) return;
+  delete db.customers[c.id];
+  const ids = Object.keys(db.customers);
+  if(!ids.length){ db = freshDb(); }
+  db.current = ids.length ? ids[0] : db.current;
+  state = db.customers[db.current];
+  save(); renderCustomerSelector(); syncSettingsInputs();
+  rerenderEditors(); // 删除后编辑器对齐到当前客户
+  renderAllPreviews();
+}
+/* 顶层可访问的编辑器重渲染：客户切换/新建/删除后调用，让表格 DOM 与当前客户对齐 */
+function rerenderEditors(){
+  const ge = document.getElementById('goodsEditor');
+  if(ge) renderEditor(state.goods, ge.__fields || G_FIELDS, 'amount', ge, balanceByIdMap());
+  const pe = document.getElementById('paymentsEditor');
+  if(pe) renderEditor(state.payments, pe.__fields || G_FIELDS, 'amount', pe);
+  const re = document.getElementById('returnsEditor');
+  if(re) renderEditor(state.returns, re.__fields || G_FIELDS, 'amount', re);
+}
+
+/* ================= 分组与汇总 ================= */
+function keyOf(r){ const p = parseDateParts(r.date); if(!p) return null; return p.y * 100 + (p.mo || 0); }
+function labelOf(key){
+  if(key == null) return '未标注日期';
+  const y = Math.floor(key / 100), mo = key % 100;
+  return mo ? (y + '年' + mo + '月') : (y + '年（未标月份）');
+}
+function yearOf(key){ return key == null ? null : Math.floor(key / 100); }
+function buildGoodsGroups(rows){
+  const groups = new Map();
+  let last = '';
+  for(const r of rows){
+    const d = String(r.date || '').trim();
+    if(d) last = d; // 记住最近一个已填日期
+    const k = keyOf({ date: d || last }); // 空日期默认继承上一非空日期（同一天），避免归到「未标注日期」组
+    if(!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  const keys = [...groups.keys()].sort((a,b)=>(a==null?1e9:a)-(b==null?1e9:b));
+  return keys.map(k => ({ key: k, label: labelOf(k), rows: sortByDate(groups.get(k)), subtotal: sumAmount(groups.get(k)) }));
+}
+function sumAmount(rows){ return round2(rows.reduce((s,r)=>{ const a = rowAmount(r); return a == null ? s : s + a; }, 0)); }
+function sumPayments(rows){ return round2(rows.reduce((s,r)=>{ const a = toNum(r.amount); return a == null ? s : s + a; }, 0)); }
+function yearTotals(groups){
+  const map = new Map();
+  for(const g of groups){ const y = yearOf(g.key); if(y == null) continue; map.set(y, (map.get(y)||0) + g.subtotal); }
+  return [...map.entries()].sort((a,b)=>a[0]-b[0]).map(([y,t])=>({ year:y, total:round2(t) }));
+}
+function totalAll(rows){ return round2(rows.reduce((s,r)=>{ const a = rowAmount(r); return a == null ? s : s + a; }, 0)); }
+function totalPayAll(){ return round2(state.payments.reduce((s,r)=>{ const a = toNum(r.amount); return a == null ? s : s + a; }, 0)); }
+
+// 每行货款对应的累计余额：期初 + 已发生货款 − 已发生付款 − 已发生退货，按日期事件流累计
+// 返回 { map: 货款行索引->余额, final: 最终余额 }（无日期事件放最后，同日期时货款先于付款/退货）
+function balanceSeries(){
+  const opening = toNum(state.opening) || 0;
+  const map = new Map();
+  const dateKey = (d) => {
+    const t = String(d || '').trim();
+    const m = t.match(/^(\d{4})[.\-\/年](\d{1,2})(?:[.\-\/月](\d{1,2}))?/);
+    if(!m) return 1e15;
+    return (+m[1]) * 10000 + (+m[2]) * 100 + (+m[3] || 0);
+  };
+  const events = [];
+  state.goods.forEach((g, i) => { const a = rowAmount(g); events.push({ k:'g', i, date: g.date, amt: a == null ? 0 : a, has: a != null }); });
+  state.payments.forEach((p, j) => { const a = toNum(p.amount); events.push({ k:'p', i: 1e9 + j, date: p.date, amt: a == null ? 0 : a, has: a != null }); });
+  state.returns.forEach((r, k) => { const a = rowAmount(r); events.push({ k:'r', i: 2e9 + k, date: r.date, amt: a == null ? 0 : a, has: a != null }); });
+  events.sort((a, b) => (dateKey(a.date) - dateKey(b.date)) || (a.i - b.i));
+  let bal = opening;
+  for(const e of events){
+    if(e.k === 'g'){ if(e.has) bal = round2(bal + e.amt); map.set(e.i, bal); }
+    else if(e.has) bal = round2(bal - e.amt);
+  }
+  return { map, final: bal };
+}
+// 把 balanceSeries 的索引 map 转成 行 id -> 余额 的 map（供编辑表/预览表直接用）
+function balanceByIdMap(){
+  const ser = balanceSeries();
+  const m = new Map();
+  state.goods.forEach((r, i) => { if(ser.map.has(i)) m.set(r.id, ser.map.get(i)); });
+  return m;
+}
+
+/* ================= 编辑表格渲染 ================= */
+const G_FIELDS = [
+  { key:'date', label:'日期', ph:'2023.3.23', cls:'', w:'92px' },
+  { key:'name', label:'名称及规格', ph:'名称及规格', cls:'' },
+  { key:'unit', label:'单位', ph:'付', cls:'', w:'60px' },
+  { key:'qty', label:'数量', ph:'0', cls:'num' },
+  { key:'price', label:'单价', ph:'0.00', cls:'num' },
+  { key:'waybill', label:'发货单号', ph:'选填', cls:'' },
+  { key:'note', label:'备注', ph:'如：余量16付', cls:'' },
+];
+function syncEditorFromDom(rows, tableEl){
+  // 关键兜底：把表格 DOM 中当前显示的输入值写回 state 行。
+  // Android WebView 软键盘输入时 input 事件可能不派发，导致 state 未更新、
+  // 任何重渲染都会把用户输入覆盖掉。以 DOM 为唯一真相，渲染/导出前先同步。
+  if(!rows || !tableEl || !tableEl.querySelectorAll) return;
+  if(tableEl.dataset.owner !== db.current) return; // DOM 属于其他客户（切换后残留），禁止写回当前客户
+  const byId = new Map();
+  for(const r of rows) byId.set(r.id, r);
+  const inputs = tableEl.querySelectorAll('input[data-id]');
+  for(const inp of inputs){
+    const r = byId.get(inp.dataset.id);
+    if(r && inp.dataset.field) r[inp.dataset.field] = inp.value;
+  }
+}
+function syncEditorsFromDom(){
+  syncEditorFromDom(state.goods, document.getElementById('goodsEditor'));
+  syncEditorFromDom(state.payments, document.getElementById('paymentsEditor'));
+  syncEditorFromDom(state.returns, document.getElementById('returnsEditor'));
+}
+// 一键「保底保存」：先把表格 DOM 最新输入同步进 state 再落盘。
+// Android 软键盘 input 事件偶尔不派发，任何「读 state 生成产物/切换/落盘」的动作前必须调用，
+// 否则刚输入的内容会丢（导出缺行 / 切客户丢失 / 重开不见）。
+function flushInputs(){ syncEditorsFromDom(); save(); }
+function renderEditor(rows, fields, amountKey, tableEl, balanceMap){
+  syncEditorFromDom(rows, tableEl); // 渲染前先保住用户已输入但尚未写入 state 的值
+  nameSuggestHide(); // 重渲染时关闭输入联想（避免残留定位错位的列表）
+  sortByDate(rows); // 编辑表也按日期排好（导入/新增/粘贴/切换客户后重渲染即有序；输入过程中行不跳）
+  if(balanceMap) tableEl.__balanceMap = balanceMap; // 删除行后重渲染沿用
+  const bm = tableEl.__balanceMap;
+  let html = '<thead><tr>';
+  fields.forEach(f => html += `<th style="${f.w?'width:'+f.w+';':''}">${f.label}</th>`);
+  if(amountKey) html += '<th style="width:90px">金额</th>';
+  if(bm) html += '<th style="width:90px">余额</th>';
+  html += '<th style="width:44px"></th></tr></thead><tbody>';
+  if(!rows.length){
+    html += `<tr><td colspan="${fields.length + (amountKey?2:1) + (bm?1:0)}"><div class="empty-tip">还没有数据，点上方「添加一行」或「批量粘贴」开始录入</div></td></tr>`;
+  }
+  rows.forEach(r => {
+    html += '<tr>';
+    fields.forEach(f => {
+      html += `<td><input data-id="${r.id}" data-field="${f.key}" class="${f.cls}" value="${esc(r[f.key])}" placeholder="${f.ph}"${f.cls && f.cls.indexOf('num') >= 0 ? ' inputmode="decimal"' : ''}></td>`;
+    });
+    if(amountKey){
+      const a = amountKey === 'amount' ? rowAmount(r) : toNum(r[amountKey]);
+      html += `<td class="amount-cell" data-amount="${r.id}">${a == null ? '—' : fmt(a)}</td>`;
+    }
+    if(bm){
+      const b = bm.get(r.id);
+      html += `<td class="amount-cell" data-balance="${r.id}">${b == null ? '—' : fmt(b)}</td>`;
+    }
+    html += `<td><button class="del-btn" data-del="${r.id}" title="删除">✕</button></td></tr>`;
+  });
+  html += '</tbody>';
+  tableEl.innerHTML = html;
+  tableEl.dataset.owner = db.current || ''; // 标记该表格当前属于哪个客户，切换客户后残留 DOM 不再被同步
+  tableEl.__rows = rows; // 事件处理器动态取当前渲染的行数组（切换客户后指向新客户的数组）
+}
+function bindEditor(tableEl, rows, amountKey, onChange){
+  if(tableEl.__bound) return; // 防重复绑定：切换客户只重渲染不重绑，处理器动态取当前渲染的行
+  tableEl.__bound = true;
+  const currentRows = () => tableEl.__rows || [];
+  function handleFieldInput(e){
+    const t = e.target;
+    if(!t || !t.dataset || !t.dataset.id) return;
+    const r = currentRows().find(x => x.id === t.dataset.id);
+    if(!r) return;
+    r[t.dataset.field] = t.value;
+    if((t.dataset.field === 'qty' || t.dataset.field === 'price') && toNum(r.amt) != null){ r.amt = ''; } // 手动改数量/单价即解锁导入锁定的金额
+    // 名称输入实时联想：输入时弹出包含该字的产品（按出现频率排），点选填入并可带出单价；继续打字实时过滤
+    if(t.dataset.field === 'name'){
+      nameSuggestShow(t, r, (name, price) => {
+        r.name = name;
+        t.value = name;
+        if(price && !toNum(r.price)){ // 带出单价（仅当本行还没填单价）
+          r.price = price;
+          const pc = tableEl.querySelector('input[data-field="price"][data-id="' + r.id + '"]');
+          if(pc){ pc.value = price; }
+        }
+        save();
+        onChange && onChange();
+      });
+    } else {
+      nameSuggestHide();
+    }
+    // 单价自动记忆：输入名称时若历史里有该名称的单价且本行未填 → 自动带出并跳到单价框（老年友好免重复打字；设置里可关）
+    if(t.dataset.field === 'name' && r.name && !r.price){
+      const hit = nameLib()[String(r.name).trim().toLowerCase()];
+      if(hit && hit.price){
+        r.price = hit.price;
+        const pc = tableEl.querySelector('input[data-field="price"][data-id="' + r.id + '"]');
+        if(pc){
+          pc.value = hit.price;
+          if(autoPriceOn()){
+            try{ pc.focus(); if(pc.setSelectionRange) pc.setSelectionRange(pc.value.length, pc.value.length); }catch(_){}
+          }
+        }
+      }
+    }
+    save();
+    if(amountKey === 'amount'){
+      const a = rowAmount(r);
+      const cell = tableEl.querySelector(`td[data-amount="${r.id}"]`);
+      if(cell) cell.textContent = a == null ? '—' : fmt(a);
+    }
+    onChange && onChange();
+  }
+  // Android WebView 软键盘输入时 input 事件偶尔不派发，用 change/focusout/keyup 兜底（重复触发仅重写相同值，无害）
+  tableEl.addEventListener('input', handleFieldInput);
+  tableEl.addEventListener('change', handleFieldInput);
+  tableEl.addEventListener('focusout', handleFieldInput);
+  tableEl.addEventListener('keyup', handleFieldInput);
+  // 联想键盘导航：↑↓ 选择、Enter 确认、Esc 关闭（在 keyup 里拦截，避免误触发 handleFieldInput 已存值）
+  tableEl.addEventListener('keydown', e => {
+    if(e.key === 'ArrowDown'){ if(__ns && __ns.keys && __ns.box && __ns.box.style.display !== 'none'){ e.preventDefault(); nameSuggestMove(1); } }
+    else if(e.key === 'ArrowUp'){ if(__ns && __ns.keys && __ns.box && __ns.box.style.display !== 'none'){ e.preventDefault(); nameSuggestMove(-1); } }
+    else if(e.key === 'Enter'){ if(__ns && __ns.keys && __ns.box && __ns.box.style.display !== 'none'){ e.preventDefault(); nameSuggestPick(__ns.sel >= 0 ? __ns.sel : 0); } }
+    else if(e.key === 'Escape'){ nameSuggestHide(); }
+  });
+  // 输入框失焦（点到表格外/其他行）→ 关闭联想；mousedown preventDefault 保证点联想项时不触发这里
+  tableEl.addEventListener('focusout', e => {
+    const t = e.target;
+    if(t && t.dataset && t.dataset.field === 'name'){
+      setTimeout(() => { if(document.activeElement !== t) nameSuggestHide(); }, 120);
+    }
+  });
+  tableEl.addEventListener('click', e => {
+    const btn = e.target.closest('[data-del]');
+    if(!btn) return;
+    const rows = currentRows();
+    const i = rows.findIndex(x => x.id === btn.dataset.del);
+    if(i >= 0){
+      __undoDel = { rows, i, row: Object.assign({}, rows[i]) }; // 记住被删行与其位置，供底部「撤销」恢复
+      rows.splice(i, 1);
+    }
+    save();
+    renderEditor(rows, tableEl.__fields, tableEl.__amountKey, tableEl);
+    updateUndoBtn();
+    onChange && onChange();
+  });
+}
+/* —— 撤销误删：底部「↩️ 撤销」恢复最近一次被删的行 —— */
+let __undoDel = null;
+function updateUndoBtn(){
+  const b = document.getElementById('undoBtn');
+  if(!b) return;
+  b.disabled = !__undoDel;
+  b.title = __undoDel ? '恢复最近一次误删的行' : '暂无可撤销的删除';
+}
+function undoDelete(){
+  if(!__undoDel) return;
+  const u = __undoDel;
+  __undoDel = null;
+  u.rows.splice(Math.min(u.i, u.rows.length), 0, u.row); // 插回原位置（越界则追加）
+  save();
+  rerenderEditors();
+  renderAllPreviews();
+  updateUndoBtn();
+}
+function updatePreviewArea(html, el){
+  el.innerHTML = html || '<div class="empty-tip">暂无数据</div>';
+}
+
+/* ================= 货款预览 ================= */
+function goodsSheetHTML(groups, yearTotalList, title, sub, balMap){
+  const cols = 10; // 日期 名称 单位 数量 单价 金额 余额 小计 发货单号 备注
+  let h = `<div class="sheet-title">${esc(title)}</div>`;
+  if(sub) h += `<div class="sheet-sub">${esc(sub)}</div>`;
+  h += '<table class="pv"><thead><tr><th>日期</th><th>名称及规格</th><th>单位</th><th class="num">数量</th><th class="num">单价</th><th class="num">金额</th><th class="num">余额</th><th class="num">小计</th><th>发货单号</th><th>备注</th></tr></thead><tbody>';
+  for(const g of groups){
+    let monthSum = 0;
+    let last = ''; // 生成表格时日期继承：没填日期的行默认同前一天（数据本身不改，仍留给人填）
+    for(const r of g.rows){
+      const a = rowAmount(r);
+      const isSum = a != null;
+      if(isSum) monthSum += a;
+      const d = String(r.date || '').trim();
+      if(d) last = d;
+      const y = parseDateParts(last);
+      const dateTxt = y ? `${y.y}.${y.mo || ''}${y.d ? '.' + y.d : ''}` : (d || last);
+      const bal = balMap ? balMap.get(r.id) : null;
+      h += `<tr><td>${esc(dateTxt)}</td><td>${esc(r.name)}</td><td>${esc(r.unit)}</td><td class="num">${esc(r.qty)}</td><td class="num">${esc(r.price)}</td><td class="num">${isSum ? fmt(a) : ''}</td><td class="num">${bal == null ? '' : fmt(bal)}</td><td class="num"></td><td>${esc(r.waybill)}</td><td>${esc(r.note)}</td></tr>`;
+    }
+    if(g.key != null && g.key % 100 !== 0){
+      h += `<tr class="subtotal"><td colspan="5"></td><td>${g.label}小计</td><td></td><td class="num">${fmt(monthSum)}</td><td colspan="2"></td></tr>`;
+    }
+  }
+  for(const yt of yearTotalList){
+    h += `<tr class="year-total"><td>${yt.year}年货款</td><td>总计</td><td colspan="3"></td><td></td><td></td><td class="num">${fmt(yt.total)}</td><td colspan="2"></td></tr>`;
+  }
+  h += '</tbody></table>';
+  return h;
+}
+function renderGoodsPreview(){
+  const groups = buildGoodsGroups(state.goods);
+  const yt = yearTotals(groups);
+  let h = '';
+  if(!state.goods.length){ updatePreviewArea('', document.getElementById('goodsPreview')); return; }
+  const byYear = new Map();
+  for(const g of groups){ const y = yearOf(g.key); if(!byYear.has(y)) byYear.set(y, []); byYear.get(y).push(g); }
+  const years = [...byYear.keys()].sort((a,b)=>(a==null?1e9:a)-(b==null?1e9:b));
+  const bm = balanceByIdMap();
+  for(const y of years){
+    const gg = byYear.get(y);
+    const title = y == null ? `${(state.partyA||'甲方')}与${(state.partyB||'乙方')}的货款（未标注日期）` : `${y}年${(state.partyA||'甲方')}与${(state.partyB||'乙方')}的对账单`;
+    const ytList = yt.filter(t => t.year === y);
+    h += goodsSheetHTML(gg, ytList, title, state.cutoffNote, bm);
+  }
+  const total = totalAll(state.goods);
+  h += `<p style="font-size:13px;color:#334;margin:4px 0 10px">货款合计：<b style="color:#1a5fd0">${fmt(total)}</b></p>`;
+  document.getElementById('goodsPreview').innerHTML = h;
+}
+
+/* ================= 付款预览 ================= */
+function renderPaymentsPreview(){
+  const rows = sortByDate(state.payments);
+  const el = document.getElementById('paymentsPreview');
+  if(!rows.length){ updatePreviewArea('', el); return; }
+  let h = `<div class="sheet-title">${esc(state.partyB||'乙方')}付给${esc(state.partyA||'甲方')}的货款</div><table class="pv"><thead><tr><th>日期</th><th class="num">付款</th><th>备注</th><th class="num">累计付款</th></tr></thead><tbody>`;
+  let cum = 0;
+  let last = ''; // 日期继承：空日期显示上一非空日期（数据不改）
+  rows.forEach(r => {
+    const a = toNum(r.amount); if(a != null) cum = round2(cum + a);
+    const d = String(r.date || '').trim();
+    if(d) last = d;
+    h += `<tr><td>${esc(d || last)}</td><td class="num">${a == null ? '' : fmt(a)}</td><td>${esc(r.note)}</td><td class="num">${fmt(cum)}</td></tr>`;
+  });
+  h += `<tr class="year-total"><td>总计付款</td><td class="num">${fmt(cum)}</td><td></td><td></td></tr></tbody></table>`;
+  el.innerHTML = h;
+}
+
+/* ================= 退货预览 ================= */
+function renderReturnsPreview(){
+  const rows = sortByDate(state.returns);
+  const el = document.getElementById('returnsPreview');
+  if(!rows.length){ updatePreviewArea('', el); return; }
+  let h = `<div class="sheet-title">${esc(state.partyB||'乙方')}退给${esc(state.partyA||'甲方')}的货</div><table class="pv"><thead><tr><th>日期</th><th>名称及规格</th><th>单位</th><th class="num">数量</th><th class="num">单价</th><th class="num">金额</th><th>备注</th></tr></thead><tbody>`;
+  let last = ''; // 日期继承：空日期显示上一非空日期（数据不改）
+  rows.forEach(r => {
+    const a = rowAmount(r);
+    const d = String(r.date || '').trim();
+    if(d) last = d;
+    h += `<tr><td>${esc(d || last)}</td><td>${esc(r.name)}</td><td>${esc(r.unit)}</td><td class="num">${esc(r.qty)}</td><td class="num">${esc(r.price)}</td><td class="num">${a == null ? '' : fmt(a)}</td><td>${esc(r.note)}</td></tr>`;
+  });
+  h += `<tr class="year-total"><td>退货共计</td><td></td><td></td><td class="num"></td><td class="num"></td><td class="num">${fmt(totalAll(rows))}</td><td></td></tr></tbody></table>`;
+  el.innerHTML = h;
+}
+
+/* ================= 总账预览 ================= */
+function buildSummaryRows(){
+  const opening = toNum(state.opening) || 0;
+  const groups = buildGoodsGroups(state.goods);
+  const yt = yearTotals(groups);
+  const totalGoods = totalAll(state.goods);
+  const totalPay = totalPayAll();
+  const totalRet = totalAll(state.returns);
+  const rows = [];
+  rows.push({ label: state.openingNote || '期初', goods: null, pay: null, ret: null, bal: opening, cls: '' });
+  let cum = opening;
+  for(const t of yt){
+    cum = round2(cum + t.total);
+    rows.push({ label: t.year + '年货款', goods: t.total, pay: null, ret: null, bal: cum, cls: '' });
+  }
+  // ① 累计总货款 = 只统计货款业务记录，不含期初余额
+  rows.push({ label: '累计总货款', goods: totalGoods, pay: null, ret: null, bal: null, cls: 'subtotal' });
+  // ② 应收余额 = 期初余额 + 累计总货款（原「累计总货款」位置误放的数放这一行）
+  const balReceivable = round2(opening + totalGoods);
+  rows.push({ label: '应收余额', goods: null, pay: null, ret: null, bal: balReceivable, cls: 'subtotal' });
+  // ③ 期末余额 = 期初 + 各期货款 − 总付款 − 总退货（与手工 Excel 一致）
+  const balPay = round2(balReceivable - totalPay);
+  rows.push({ label: '总付款', goods: null, pay: totalPay, ret: null, bal: balPay, cls: '' });
+  const balFinal = round2(balPay - totalRet);
+  rows.push({ label: '总退货', goods: null, pay: null, ret: totalRet, bal: balFinal, cls: 'year-total' });
+  return rows;
+}
+function renderSummaryPreview(){
+  const el = document.getElementById('summaryPreview');
+  const hasData = state.goods.length || state.payments.length || state.returns.length || toNum(state.opening) != null;
+  if(!hasData){ updatePreviewArea('', el); return; }
+  const rows = buildSummaryRows();
+  let h = '';
+  if(!state.partyA || !state.partyB){
+    h += '<div style="margin:6px 0;padding:8px 10px;background:#fdf8ec;border:1px solid #f0d9a8;border-radius:6px;font-size:13px;color:#9a6700">⚠️ 甲方或乙方还未填写，请到顶部设置里填写（不填也能用，导出/打印时名称显示为「甲方/乙方」）。</div>';
+  }
+  h += `<div class="sheet-title">${esc(state.partyA||'甲方')}与${esc(state.partyB||'乙方')}的总账</div>`;
+  if(state.cutoffNote) h += `<div class="sheet-sub">${esc(state.cutoffNote)}</div>`;
+  h += '<table class="pv"><thead><tr><th>日期</th><th class="num">货款</th><th class="num">付款</th><th class="num">退货</th><th class="num">余额</th></tr></thead><tbody>';
+  for(const r of rows){
+    h += `<tr class="${r.cls}"><td>${esc(r.label)}</td><td class="num">${r.goods == null ? '' : fmt(r.goods)}</td><td class="num">${r.pay == null ? '' : fmt(r.pay)}</td><td class="num">${r.ret == null ? '' : fmt(r.ret)}</td><td class="num">${r.bal == null ? '' : fmt(r.bal)}</td></tr>`;
+  }
+  h += '</tbody></table>';
+  el.innerHTML = h;
+}
+function renderAllPreviews(){ syncEditorsFromDom(); renderGoodsPreview(); renderPaymentsPreview(); renderReturnsPreview(); renderSummaryPreview(); }
+
+/* ================= 设置区绑定 ================= */
+function bindSettings(){
+  ['partyA','partyB','opening','openingNote','cutoffNote'].forEach(id => {
+    document.getElementById(id).addEventListener('input', e => {
+      state[id] = e.target.value;
+      if(id === 'opening') state.opening = e.target.value;
+      save(); renderAllPreviews();
+    });
+  });
+}
+
+/* ================= 工具栏绑定 ================= */
+function setup(){
+  load();
+  // 回到首页：右下角常驻小圆钮，点击平滑回到顶部（方便切换客户）
+  const backTopBtn = document.getElementById('backTopBtn');
+  if(backTopBtn){
+    backTopBtn.addEventListener('click', () => {
+      try{ window.scrollTo({ top:0, behavior:'smooth' }); }catch(_){ window.scrollTo(0, 0); }
+    });
+  }
+  // AI 助手
+  const aiModal = document.getElementById('aiChatModal');
+  const aiFab = document.getElementById('aiFab');
+  if(aiModal && aiFab){
+    const openAI = () => {
+      aiModal.classList.add('show');
+      if(!__aiOpeningShown){
+        __aiOpeningShown = true;
+        aiSay('你好，我是智能小助手 🤖\n\n我能读取你全部账单数据，帮你：\n① 查数据：当前客户的余额 / 所有客户合计\n② 帮你操作：导出 Excel / 打印 / 新建客户 张三 / 切换客户\n③ 教用法：怎么导入账单 / 数据会不会丢\n\n直接问我吧！');
+      }
+      const inp = document.getElementById('aiChatInput');
+      if(inp) setTimeout(() => { try{ inp.focus(); }catch(_){} }, 80);
+    };
+    aiFab.addEventListener('click', openAI);
+    document.getElementById('aiChatClose').addEventListener('click', () => aiModal.classList.remove('show'));
+    aiModal.addEventListener('click', e => { if(e.target === aiModal) aiModal.classList.remove('show'); });
+    const sendAI = () => {
+      const inp = document.getElementById('aiChatInput');
+      const v = inp.value.trim();
+      if(v) aiAsk(v);
+    };
+    document.getElementById('aiChatSend').addEventListener('click', sendAI);
+    document.getElementById('aiChatInput').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); sendAI(); } });
+    const chips = ['当前客户余额','所有客户合计','今年卖了多少钱','产品统计','怎么导出 Excel','怎么新建客户','怎么切换客户','大字模式'];
+    const chipBox = document.getElementById('aiChatChips');
+    if(chipBox){
+      for(const c of chips){
+        const b = document.createElement('button');
+        b.className = 'ai-chip'; b.textContent = c;
+        b.addEventListener('click', () => { aiAsk(c); });
+        chipBox.appendChild(b);
+      }
+    }
+  }
+  // 客户切换（搜索式）
+  renderCustomerSelector();
+  bindCustomerSearch();
+  const addC = document.getElementById('addCustomerBtn'); if(addC) addC.addEventListener('click', addCustomerFlow);
+  const renC = document.getElementById('renameCustomerBtn'); if(renC) renC.addEventListener('click', renameCustomerFlow);
+  const delC = document.getElementById('deleteCustomerBtn'); if(delC) delC.addEventListener('click', deleteCustomerFlow);
+  syncSettingsInputs();
+
+  // tabs
+  document.querySelectorAll('.tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // 货款
+  const goodsEditor = document.getElementById('goodsEditor');
+  goodsEditor.__fields = G_FIELDS; goodsEditor.__amountKey = 'amount';
+  const renderGoodsEditor = () => renderEditor(state.goods, G_FIELDS, 'amount', goodsEditor, balanceByIdMap());
+  // 明细与总账联动：明细任何变化（输入/增行/清空）都同步刷新总账，防止「付款录进去总账不显示」
+  // 刷新前强制先 syncEditorFromDom：Android 软键盘 input 事件偶尔不派发，state 可能落后于 DOM，
+  // 不先同步就会看到「表格有、预览/总账没有」的延迟假象
+  const refreshGoodsAll = () => { syncEditorFromDom(state.goods, goodsEditor); renderGoodsPreview(); renderSummaryPreview(); };
+  bindEditor(goodsEditor, state.goods, 'amount', refreshGoodsAll);
+  document.getElementById('addGoods').addEventListener('click', () => { state.goods.push(defaultRow()); sortByDate(state.goods); save(); renderGoodsEditor(); refreshGoodsAll(); focusLastRow(document.getElementById('goodsEditor')); });
+  document.getElementById('clearGoods').addEventListener('click', () => { if(confirm('确定清空所有货款明细？')){ state.goods = []; save(); renderGoodsEditor(); refreshGoodsAll(); } });
+
+  // 付款
+  const P_FIELDS = [
+    { key:'date', label:'日期', ph:'2023.1.8', cls:'', w:'92px' },
+    { key:'amount', label:'付款金额', ph:'0.00', cls:'num' },
+    { key:'note', label:'备注', ph:'选填', cls:'' },
+  ];
+  const paymentsEditor = document.getElementById('paymentsEditor');
+  paymentsEditor.__fields = P_FIELDS; paymentsEditor.__amountKey = 'amount';
+  const renderPaymentsEditor = () => renderEditor(state.payments, P_FIELDS, 'amount', paymentsEditor);
+  const refreshPaymentsAll = () => { syncEditorFromDom(state.payments, paymentsEditor); renderPaymentsPreview(); renderSummaryPreview(); };
+  bindEditor(paymentsEditor, state.payments, 'amount', refreshPaymentsAll);
+  document.getElementById('addPayment').addEventListener('click', () => { state.payments.push(defaultPayment()); sortByDate(state.payments); save(); renderPaymentsEditor(); refreshPaymentsAll(); focusLastRow(document.getElementById('paymentsEditor')); });
+  document.getElementById('clearPayments').addEventListener('click', () => { if(confirm('确定清空所有付款记录？')){ state.payments = []; save(); renderPaymentsEditor(); refreshPaymentsAll(); } });
+
+  // 退货
+  const R_FIELDS = [
+    { key:'date', label:'日期', ph:'2023.3.23', cls:'', w:'92px' },
+    { key:'name', label:'名称及规格', ph:'名称及规格', cls:'' },
+    { key:'unit', label:'单位', ph:'付', cls:'', w:'60px' },
+    { key:'qty', label:'数量', ph:'0', cls:'num' },
+    { key:'price', label:'单价', ph:'0.00', cls:'num' },
+    { key:'note', label:'备注', ph:'选填', cls:'' },
+  ];
+  const returnsEditor = document.getElementById('returnsEditor');
+  returnsEditor.__fields = R_FIELDS; returnsEditor.__amountKey = 'amount';
+  const renderReturnsEditor = () => renderEditor(state.returns, R_FIELDS, 'amount', returnsEditor);
+  const refreshReturnsAll = () => { syncEditorFromDom(state.returns, returnsEditor); renderReturnsPreview(); renderSummaryPreview(); };
+  bindEditor(returnsEditor, state.returns, 'amount', refreshReturnsAll);
+  document.getElementById('addReturn').addEventListener('click', () => { state.returns.push(defaultReturn()); sortByDate(state.returns); save(); renderReturnsEditor(); refreshReturnsAll(); focusLastRow(document.getElementById('returnsEditor')); });
+  document.getElementById('clearReturns').addEventListener('click', () => { if(confirm('确定清空所有退货记录？')){ state.returns = []; save(); renderReturnsEditor(); refreshReturnsAll(); } });
+
+  // 批量粘贴
+  let pasteTarget = 'goods';
+  const pasteModal = document.getElementById('pasteModal');
+  const pasteHint = document.getElementById('pasteHint');
+  const pasteText = document.getElementById('pasteText');
+  function openPaste(target){
+    pasteTarget = target;
+    const hints = {
+      goods: '货款明细格式：<b>日期 名称 数量 单价 单位 发货单号 备注</b>',
+      payments: '付款流水格式：<b>日期 付款金额 备注</b>',
+      returns: '退货记录格式：<b>日期 名称 数量 单价 单位 备注</b>',
+    };
+    pasteHint.innerHTML = hints[target];
+    pasteText.value = '';
+    pasteModal.classList.add('show');
+    setTimeout(() => pasteText.focus(), 50);
+  }
+  document.getElementById('pasteGoods').addEventListener('click', () => openPaste('goods'));
+  document.getElementById('pastePayments').addEventListener('click', () => openPaste('payments'));
+  document.getElementById('pasteReturns').addEventListener('click', () => openPaste('returns'));
+  document.getElementById('pasteCancel').addEventListener('click', () => pasteModal.classList.remove('show'));
+  pasteModal.addEventListener('click', e => { if(e.target === pasteModal) pasteModal.classList.remove('show'); });
+  const statsModal = document.getElementById('statsModal');
+  document.getElementById('statsBtn').addEventListener('click', openStats);
+  document.getElementById('undoBtn').addEventListener('click', undoDelete);
+  updateUndoBtn();
+  document.getElementById('statsClose').addEventListener('click', () => statsModal.classList.remove('show'));
+  statsModal.addEventListener('click', e => { if(e.target === statsModal) statsModal.classList.remove('show'); });
+  document.getElementById('statsCust').addEventListener('change', statsSelCust);
+  document.getElementById('statsYear').addEventListener('change', statsSelYear);
+  document.getElementById('pasteOk').addEventListener('click', () => {
+    const lines = pasteText.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    let added = 0;
+    for(const line of lines){
+      const cols = line.split(/\t|,|，|;|；/).map(c => c.trim());
+      if(!cols.length || !cols[0]) continue;
+      if(pasteTarget === 'goods'){
+        state.goods.push({ id: uid(), date: cols[0]||'', name: cols[1]||'', qty: cols[2]||'', price: cols[3]||'', unit: cols[4]||'付', waybill: cols[5]||'', note: cols[6]||'' });
+      } else if(pasteTarget === 'payments'){
+        state.payments.push({ id: uid(), date: cols[0]||'', amount: cols[1]||'', note: cols[2]||'' });
+      } else {
+        state.returns.push({ id: uid(), date: cols[0]||'', name: cols[1]||'', qty: cols[2]||'', price: cols[3]||'', unit: cols[4]||'付', note: cols[5]||'' });
+      }
+      added++;
+    }
+    sortByDate(state.goods); sortByDate(state.payments); sortByDate(state.returns); // 批量粘贴后按日期排好
+    save();
+    pasteModal.classList.remove('show');
+    if(added) renderGoodsEditor(), renderPaymentsEditor(), renderReturnsEditor(), renderAllPreviews();
+  });
+
+  // 导入 Excel
+  let importParsed = null;
+  let __overwriteConfirmed = false; // 覆盖模式二次确认标志（第一次点击只展示对比）
+  document.getElementById('importXlsx').addEventListener('click', () => document.getElementById('importFile').click());
+  document.getElementById('importFile').addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!f) return;
+    try {
+      const buf = new Uint8Array(await f.arrayBuffer());
+      importParsed = await parseImportXlsx(buf);
+      document.getElementById('importSummary').innerHTML = buildImportSummary(importParsed);
+      document.querySelector('input[name="importMode"][value="append"]').checked = true;
+      __overwriteConfirmed = false;
+      const ib = document.getElementById('importOk'); ib.textContent = '确认导入'; ib.classList.remove('danger');
+      document.getElementById('importCompare').innerHTML = ''; document.getElementById('importCompare').style.display = 'none';
+      document.getElementById('importModal').classList.add('show');
+    } catch(err){
+      alert('导入失败：' + err.message);
+    }
+  });
+  document.getElementById('importCancel').addEventListener('click', () => document.getElementById('importModal').classList.remove('show'));
+  document.getElementById('importModal').addEventListener('click', e => { if(e.target === document.getElementById('importModal')) document.getElementById('importModal').classList.remove('show'); });
+  document.getElementById('importOk').addEventListener('click', () => {
+    if(!importParsed) return;
+    const modeEl = document.querySelector('input[name="importMode"]:checked');
+    const mode = modeEl ? modeEl.value : 'append';
+    // ② 覆盖模式二次确认：第一次点击只展示对比表，第二次才真正执行
+    if(mode === 'overwrite' && !__overwriteConfirmed){
+      __overwriteConfirmed = true;
+      document.getElementById('importCompare').style.display = 'block';
+      document.getElementById('importCompare').innerHTML = buildCompareHTML(importParsed);
+      const btn = document.getElementById('importOk');
+      btn.textContent = '⚠️ 确认覆盖导入';
+      btn.classList.add('danger');
+      return;
+    }
+    // ① 导入前备份（append/overwrite 都备份，导入后可撤销）
+    saveImportBackup();
+    const stats = mergeImport(importParsed, mode);
+    save();
+    document.getElementById('importModal').classList.remove('show');
+    document.getElementById('opening').value = state.opening;
+    document.getElementById('openingNote').value = state.openingNote;
+    renderEditor(state.goods, G_FIELDS, 'amount', goodsEditor, balanceByIdMap());
+    renderEditor(state.payments, P_FIELDS, 'amount', paymentsEditor);
+    renderEditor(state.returns, R_FIELDS, 'amount', returnsEditor);
+    renderAllPreviews();
+    __overwriteConfirmed = false;
+    const ib = document.getElementById('importOk'); ib.textContent = '确认导入'; ib.classList.remove('danger');
+    showUndoBar();
+    alert('导入完成：' + summaryLine(stats) + (mode === 'overwrite' ? '（已覆盖现有数据）' : ''));
+  });
+  // ② 导入模式切换：选覆盖时预填对比表，切回追加时清空；重置二次确认状态
+  document.querySelectorAll('input[name="importMode"]').forEach(r => r.addEventListener('change', () => {
+    __overwriteConfirmed = false;
+    const btn = document.getElementById('importOk');
+    btn.textContent = '确认导入'; btn.classList.remove('danger');
+    const cmp = document.getElementById('importCompare');
+    if(r.value === 'overwrite' && importParsed){
+      cmp.innerHTML = buildCompareHTML(importParsed);
+      cmp.style.display = 'block';
+    } else {
+      cmp.innerHTML = ''; cmp.style.display = 'none';
+    }
+  }));
+  // ① 撤销导入
+  document.getElementById('undoBtn').addEventListener('click', undoImport);
+  document.getElementById('undoClose').addEventListener('click', hideUndoBar);
+
+  // 导出 / 打印 / 重置
+  document.getElementById('exportXlsx').addEventListener('click', exportXlsx);
+  document.getElementById('printBtn').addEventListener('click', () => {
+    flushInputs(); // 打印内容也取最新输入
+    const area = document.getElementById('printArea');
+    let h = '';
+    h += '<html><head><meta charset="utf-8"><style>body{font-family:sans-serif;margin:10px}table{border-collapse:collapse;width:100%;margin-bottom:14px}th,td{border:1px solid #333;padding:4px 6px;font-size:12px}th{background:#eee}h1{font-size:18px;text-align:center;margin:4px 0}.num{text-align:right}.sheet-title{text-align:center;font-size:16px;font-weight:700;padding:10px 0 2px}.sheet-sub{text-align:center;font-size:12px;color:#555;padding-bottom:8px}table.pv{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px}table.pv th{background:#f2f5f9;border:1px solid #aab4c0;padding:6px 8px;font-weight:600;text-align:center}table.pv td{border:1px solid #aab4c0;padding:5px 8px}table.pv td.num,table.pv th.num{text-align:right}table.pv tr.subtotal td{font-weight:700;background:#f7f9fc}table.pv tr.year-total td{font-weight:700;background:#fdeee0}table.pv tr.sumhead td{background:#f2f5f9;font-weight:600;text-align:center}</style></head><body>';
+    h += '<h1>' + esc(state.partyA||'甲方') + '与' + esc(state.partyB||'乙方') + '的对账单</h1>';
+    if(state.cutoffNote) h += '<p style="text-align:center;font-size:12px;color:#555;margin-bottom:10px">' + esc(state.cutoffNote) + '</p>';
+    if(state.goods.length){ h += renderGoodsHTMLForPrint(); }
+    if(state.payments.length){ h += document.getElementById('paymentsPreview').innerHTML; }
+    if(state.returns.length){ h += document.getElementById('returnsPreview').innerHTML; }
+    h += document.getElementById('summaryPreview').innerHTML;
+    h += '</body></html>';
+    // 打印内容净化：去除任何 script 块 + 长度上限，防止打印视图执行非预期脚本
+    h = h.replace(/<script[\s\S]*?<\/script>/gi, '');
+    if(h.length > 400000){ h = h.slice(0, 400000); }
+    if(window.AndroidBridge && typeof AndroidBridge.printHtml === 'function'){
+      AndroidBridge.printHtml(h);
+    } else {
+      area.innerHTML = h;
+      window.print();
+    }
+  });
+  document.getElementById('resetAll').addEventListener('click', () => {
+    if(confirm('确定清空当前客户（' + customerDisplay(currentCustomer()) + '）的全部数据？甲方乙方名称也会一并清除，此操作不可恢复（导出 Excel 可备份）。')){
+      state.partyA = ''; state.partyB = ''; state.opening = ''; state.openingNote = ''; state.cutoffNote = '';
+      state.goods = []; state.payments = []; state.returns = [];
+      save();
+      syncSettingsInputs();
+      renderGoodsEditor(); renderPaymentsEditor(); renderReturnsEditor(); renderAllPreviews();
+    }
+  });
+
+  // 检查更新：App 内先保存当前输入，再走原生桥重新拉取远程版；浏览器内直接刷新
+  document.getElementById('checkUpdate').addEventListener('click', () => {
+    if(window.AndroidBridge && typeof AndroidBridge.reloadRemote === 'function'){
+      if(confirm('将重新从服务器拉取最新版本，当前输入会自动保存。确定？')){
+        flushInputs(); // 更新前先落盘（软键盘事件未派发时 save() 会存旧值）
+        AndroidBridge.reloadRemote();
+      }
+    } else {
+      location.reload();
+    }
+  });
+
+
+  // 老年友好：选常用名称（填到当前表格最后一行，点选免打字）
+  const namePickerModal = document.getElementById('namePickerModal');
+  function pickNameToGoods(){
+    openNamePicker((name, price) => {
+      if(!state.goods.length || state.goods[state.goods.length-1].name) state.goods.push(defaultRow());
+      const r = state.goods[state.goods.length-1];
+      r.name = name; if(price) r.price = price;
+      save(); renderGoodsEditor(); renderAllPreviews(); focusLastRow(goodsEditor);
+      if(price && autoPriceOn()) focusPriceInput(goodsEditor); // 跳到单价框方便直接改
+    });
+  }
+  function pickNameToReturns(){
+    openNamePicker((name, price) => {
+      if(!state.returns.length || state.returns[state.returns.length-1].name) state.returns.push(defaultReturn());
+      const r = state.returns[state.returns.length-1];
+      r.name = name; if(price) r.price = price;
+      save(); renderReturnsEditor(); renderAllPreviews(); focusLastRow(returnsEditor);
+      if(price && autoPriceOn()) focusPriceInput(returnsEditor);
+    });
+  }
+  document.getElementById('pickNameGoods').addEventListener('click', pickNameToGoods);
+  document.getElementById('pickNameReturns').addEventListener('click', pickNameToReturns);
+  document.getElementById('namePickerCancel').addEventListener('click', () => namePickerModal.classList.remove('show'));
+  namePickerModal.addEventListener('click', e => { if(e.target === namePickerModal) namePickerModal.classList.remove('show'); });
+
+  // 人为新增常用产品（保存后下次搜索/点选都能找到）
+  const addProductForm = document.getElementById('addProductForm');
+  function hideNamePickerParts(){
+    const grid2 = document.getElementById('namePickerGrid'), search2 = document.getElementById('namePickerSearch');
+    if(grid2) grid2.style.display = 'none';
+    if(search2) search2.style.display = 'none';
+    const p = namePickerModal.querySelector('p');
+    if(p) p.style.display = 'none';
+  }
+  document.getElementById('namePickerAdd').addEventListener('click', () => {
+    hideNamePickerParts();
+    if(addProductForm) addProductForm.style.display = 'block';
+    setTimeout(() => { try{ document.getElementById('addProductName').focus(); }catch(_){} }, 50);
+  });
+  document.getElementById('addProductOk').addEventListener('click', () => {
+    const nm = document.getElementById('addProductName').value.trim();
+    const pr = document.getElementById('addProductPrice').value.trim();
+    if(!nm){ try{ document.getElementById('addProductName').focus(); }catch(_){} return; }
+    const list = getCustomProducts();
+    list.push({ name: nm, price: pr });
+    saveCustomProducts(list);
+    document.getElementById('addProductName').value = '';
+    document.getElementById('addProductPrice').value = '';
+    if(addProductForm) addProductForm.style.display = 'none';
+    if(__namePickerOnPick) openNamePicker(__namePickerOnPick); // 重开弹窗：新产品已在列表
+  });
+  document.getElementById('addProductCancel').addEventListener('click', () => {
+    document.getElementById('addProductName').value = '';
+    document.getElementById('addProductPrice').value = '';
+    if(addProductForm) addProductForm.style.display = 'none';
+    const grid2 = document.getElementById('namePickerGrid'), search2 = document.getElementById('namePickerSearch');
+    if(grid2) grid2.style.display = '';
+    if(search2) search2.style.display = '';
+    const p = namePickerModal.querySelector('p');
+    if(p) p.style.display = '';
+  });
+
+  // 大字模式（localStorage 持久化，刷新/重开保持）
+  const largeModeEl = document.getElementById('largeMode');
+  if(largeModeEl){
+    if(localStorage.getItem('zhineng-large-mode') === '1'){ document.body.classList.add('large-mode'); largeModeEl.checked = true; }
+    largeModeEl.addEventListener('change', () => {
+      document.body.classList.toggle('large-mode', largeModeEl.checked);
+      try{ localStorage.setItem('zhineng-large-mode', largeModeEl.checked ? '1' : '0'); }catch(_){}
+    });
+  }
+  // 自动带出单价开关（默认开；localStorage 持久化）
+  const autoPriceEl = document.getElementById('autoPrice');
+  if(autoPriceEl){
+    autoPriceEl.checked = autoPriceOn();
+    autoPriceEl.addEventListener('change', () => {
+      try{ localStorage.setItem('zhineng-auto-price', autoPriceEl.checked ? '1' : '0'); }catch(_){}
+    });
+  }
+
+  // 初始渲染
+  renderGoodsEditor(); renderPaymentsEditor(); renderReturnsEditor(); renderAllPreviews();
+  bindSettings();
+  updateDataStatus();
+}
+function renderGoodsHTMLForPrint(){
+  const groups = buildGoodsGroups(state.goods);
+  const yt = yearTotals(groups);
+  let h = '';
+  const byYear = new Map();
+  for(const g of groups){ const y = yearOf(g.key); if(!byYear.has(y)) byYear.set(y, []); byYear.get(y).push(g); }
+  const years = [...byYear.keys()].sort((a,b)=>(a==null?1e9:a)-(b==null?1e9:b));
+  for(const y of years){
+    const gg = byYear.get(y);
+    const title = y == null ? `${(state.partyA||'甲方')}与${(state.partyB||'乙方')}的货款（未标注日期）` : `${y}年${(state.partyA||'甲方')}与${(state.partyB||'乙方')}的对账单`;
+    h += goodsSheetHTML(gg, yt.filter(t => t.year === y), title, state.cutoffNote);
+  }
+  return h;
+}
+
+/* ================= XLSX 导入（自实现，无外部依赖） ================= */
+function colLettersToIdx(ref){
+  const m = String(ref || '').match(/^([A-Z]+)/);
+  if(!m) return -1;
+  let n = 0;
+  for(const ch of m[1]) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+}
+function parseXml(str){
+  const doc = new DOMParser().parseFromString(str, 'application/xml');
+  return doc && doc.querySelector('parsererror') ? null : doc;
+}
+function parseSharedStrings(xmlStr){
+  const doc = parseXml(xmlStr);
+  if(!doc) return [];
+  const arr = [];
+  doc.querySelectorAll('si').forEach(si => arr.push(si.textContent));
+  return arr;
+}
+function sheetToGrid(xmlStr, shared){
+  const doc = parseXml(xmlStr);
+  if(!doc) return [];
+  const grid = [];
+  doc.querySelectorAll('row').forEach(row => {
+    const cells = [];
+    row.querySelectorAll('c').forEach(c => {
+      const colIdx = colLettersToIdx(c.getAttribute('r'));
+      if(colIdx < 0) return;
+      const t = c.getAttribute('t');
+      const vEl = c.querySelector('v');
+      let v = null;
+      if(t === 's' && vEl){ const si = parseInt(vEl.textContent, 10); v = shared[si] != null ? shared[si] : ''; }
+      else if(t === 'inlineStr'){ const is = c.querySelector('is'); v = is ? is.textContent : ''; }
+      else if(vEl){ v = vEl.textContent; }
+      cells[colIdx] = v == null ? '' : v;
+    });
+    grid.push(cells);
+  });
+  return grid;
+}
+function findEOCD(bytes){
+  const min = Math.max(0, bytes.length - 22 - 65535);
+  for(let i = bytes.length - 22; i >= min; i--){
+    if(bytes[i] === 0x50 && bytes[i+1] === 0x4b && bytes[i+2] === 0x05 && bytes[i+3] === 0x06) return i;
+  }
+  return -1;
+}
+async function inflateDeflate(comp){
+  if(typeof DecompressionStream === 'undefined') throw new Error('当前浏览器不支持读取压缩的 Excel，请使用最新版 Chrome 或 Edge');
+  for(const fmt of ['deflate-raw', 'deflate']){
+    try{
+      const ds = new DecompressionStream(fmt);
+      const stream = new Blob([comp]).stream().pipeThrough(ds);
+      const buf = await new Response(stream).arrayBuffer();
+      return new Uint8Array(buf);
+    }catch(e){}
+  }
+  throw new Error('Excel 文件解压失败（可能已损坏）');
+}
+async function unzipBytes(bytes){
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const eocd = findEOCD(bytes);
+  if(eocd < 0) throw new Error('不是有效的 Excel (.xlsx) 文件');
+  const cdOffset = dv.getUint32(eocd + 16, true);
+  const cdSize = dv.getUint32(eocd + 12, true);
+  const dec = new TextDecoder();
+  const entries = [];
+  let p = cdOffset;
+  const end = cdOffset + cdSize;
+  while(p < end && p + 46 <= bytes.length){
+    if(dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true);
+    const compSize = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const commentLen = dv.getUint16(p + 32, true);
+    const localOff = dv.getUint32(p + 42, true);
+    const name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
+    const lNameLen = dv.getUint16(localOff + 26, true);
+    const lExtraLen = dv.getUint16(localOff + 28, true);
+    const comp = bytes.subarray(localOff + 30 + lNameLen + lExtraLen, localOff + 30 + lNameLen + lExtraLen + compSize);
+    entries.push({ name, method, comp });
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  const out = new Map();
+  for(const e of entries){
+    let data;
+    if(e.method === 0) data = e.comp;
+    else if(e.method === 8) data = await inflateDeflate(e.comp);
+    else throw new Error('不支持的文件压缩方式（' + e.method + '）');
+    out.set(e.name, data);
+  }
+  return out;
+}
+function cleanDate(s){
+  const t = String(s || '').trim();
+  const m = t.match(/(\d{4})[.\-\/年](\d{1,2})(?:[.\-\/月](\d{1,2}))?/);
+  if(!m) return t;
+  return m[1] + '.' + m[2] + (m[3] ? '.' + m[3] : '');
+}
+// 日期低级笔误自动补全：年份少写数字（如「202.4.26」→「2026.4.26」；「23.4.26」→「2023.4.26」）
+// 只处理纯数字日期串（含中文如「2023.1月」「2026.11止」不碰）；年份 2 位→20xx，3 位→补第四位取与参考年份最接近的；
+// 月份>12 或 日>31 视为写反/异常，不猜。参考年份：refDate（上一行日期）年份，否则当前年份。
+function fixDateStr(raw, refDate){
+  if(!raw) return raw;
+  const s = String(raw).trim();
+  const m = /^(\d{1,4})[.\-\/](\d{1,2})(?:[.\-\/](\d{1,2}))?$/.exec(s);
+  if(!m) return s;
+  let Y = parseInt(m[1], 10);
+  const Mo = parseInt(m[2], 10), D = m[3] ? parseInt(m[3], 10) : null;
+  if(Y >= 1000) return s; // 4 位年份正常
+  if(Mo > 12 || (D != null && D > 31)) return s; // 疑似月份/日写反，不猜
+  let refYear = null;
+  if(refDate){ const ly = /(19|20)\d{2}/.exec(String(refDate)); if(ly) refYear = parseInt(ly[0], 10); }
+  if(refYear == null) refYear = new Date().getFullYear();
+  if(Y < 100) Y = 2000 + Y;
+  else{
+    let best = Y * 10, bd = Math.abs(best - refYear);
+    for(let d4 = 1; d4 <= 9; d4++){ const y = Y * 10 + d4; const dd = Math.abs(y - refYear); if(dd < bd){ bd = dd; best = y; } }
+    Y = best;
+  }
+  return Y + '.' + Mo + (D != null ? '.' + D : '');
+}
+function sheetHeaderRow(grid){
+  for(const row of grid){
+    // 跳过标题行：合并单元格标题（如「甲方与乙方的货款（未标注日期）」）通常只有 1 个非空单元格，
+    // 且可能含「日期」「名称」等表头关键词（「未标注日期」含「日期」）→ 不能误当表头。表头至少 2 列。
+    const filled = (row || []).filter(c => c != null && String(c).trim() !== '');
+    if(filled.length < 2) continue;
+    const joined = row.join('|');
+    if(joined.includes('名称及规格') || joined.includes('品名') || joined.includes('名称') || joined.includes('日期')) return row;
+  }
+  return null;
+}
+// 智能列识别：按关键词匹配表头各列（支持各种手账列名变体）
+function detectHeader(headerRow){
+  const idx = {};
+  const pats = [
+    ['date',    ['日期', '时间', '年月日']],
+    ['name',    ['名称及规格', '品名', '货名', '名称', '规格', '产品', '材料']],
+    ['unit',    ['单位']],
+    ['qty',     ['数量']],
+    ['price',   ['单价', '价格']],
+    ['amount',  ['金额', '货款', '货值']],
+    ['balance', ['余额', '结余', '欠款', '结欠']],
+    ['pay',     ['付款', '已付', '付给', '实付']],
+    ['waybill', ['发货', '单号', '单据']],
+    ['subtotal',['小计', '小结']],
+    ['note',    ['备注', '说明']],
+  ];
+  (headerRow || []).forEach((h, i) => {
+    const k = String(h || '').trim();
+    if(!k) return;
+    for(const [field, list] of pats){
+      if(idx[field] != null) continue;
+      if(list.some(p => k.includes(p))) idx[field] = i;
+    }
+  });
+  return idx;
+}
+function classifySheet(sheetName, headerRow, idx){
+  const name = String(sheetName || '');
+  if(name.includes('总账')) return 'summary';
+  if(/退货|退款/.test(name)) return 'returns';
+  const hd = (headerRow || []).map(h => String(h || '').trim()).filter(Boolean);
+  if(hd.some(h => h.includes('退货') || h.includes('退款'))) return 'returns';
+  const hasName = idx.name != null;
+  const hasAmt = idx.amount != null;
+  const hasPay = idx.pay != null;
+  if(hasName && (hasAmt || hasPay || idx.balance != null)) return 'goods';
+  if(hasPay && !hasName) return 'payments';
+  if(/货款/.test(name)) return 'goods';
+  return null;
+}
+function gridIndexOf(grid, headerRow){
+  for(let i = 0; i < grid.length; i++){ if(grid[i] === headerRow) return i; }
+  return 0;
+}
+// 明细表（货款）通用解析：自动分离 期初行 / 付款行 / 退货行 / 小计汇总行 / 文字标记行
+function parseDetailSheet(grid, headerRow, idx){
+  const start = gridIndexOf(grid, headerRow) + 1;
+  const goods = [], payments = [], returns = [];
+  let lastDate = '';
+  let opening = null, openingNote = '';
+  let firstDataRow = true;
+  for(let r = start; r < grid.length; r++){
+    const row = grid[r];
+    const g = (i) => (i == null || row[i] == null) ? '' : String(row[i]).trim();
+    const name = g(idx.name);
+    // 日期低级笔误自动补全（「202.4.26」→「2026.4.26」；参考上一行日期年份）
+    let dateRaw = fixDateStr(g(idx.date), lastDate);
+    const amtRaw = g(idx.amount), amtNum = toNum(amtRaw);
+    const qty = g(idx.qty), price = g(idx.price);
+    const payRaw = g(idx.pay), payNum0 = toNum(payRaw);
+    let payNum = payNum0;
+    const balRaw = g(idx.balance), balNum0 = toNum(balRaw);
+    let balNum = balNum0;
+    // 表头缺「付款/余额」列名（如表头 `…金额|(空)`，数据列错位：金额后一列=付款、后两列=余额）→ 按位兜底
+    const balCol = idx.balance != null ? idx.balance : (idx.amount != null ? idx.amount + 2 : null);
+    const payCol = idx.pay != null ? idx.pay : (idx.amount != null ? idx.amount + 1 : null);
+    if(payNum == null && payCol != null && payCol !== idx.pay && payCol !== balCol){
+      const n = toNum(g(payCol));
+      if(n != null) payNum = n;
+    }
+    if(balNum == null && balCol != null && balCol !== idx.balance){
+      const n = toNum(g(balCol));
+      if(n != null) balNum = n;
+    }
+    const note = g(idx.note);
+    const subVal = idx.subtotal != null ? g(idx.subtotal) : '';
+    // ① 期初/上年余额行（先于汇总判断：名称「2024年余额」等不能被年份正则误拦）
+    //    期初值：优先余额列；余额列空时取行内最后一个数字（从右往左）——期初常写在名称列
+    //    「欠款」行（如「欠款 37690」= 上一账期小计−付款的结余，写在单价列）→ 期初 = 欠款额，之前逐笔明细已含在欠款中，全部丢弃
+    if(/余额|结余|上年|年底|年初|欠款/.test(name + '|' + dateRaw + '|' + note + '|' + price)){
+      let pv = balNum;
+      if(pv == null){
+        for(let c = row.length - 1; c >= 0; c--){
+          const n = toNum(g(c));
+          if(n != null){ pv = n; break; }
+        }
+      }
+      if(pv != null && opening == null){
+        opening = pv; openingNote = name || dateRaw || note || (price && /[\u4e00-\u9fa5]/.test(price) ? price : '') || '期初';
+        if(/欠款/.test(name + '|' + dateRaw + '|' + note + '|' + price)){ goods.length = 0; payments.length = 0; returns.length = 0; }
+      }
+      firstDataRow = false;
+      continue;
+    }
+    // ② 明细表首行数据 → 期初：a) 只有余额列有值（如「2024.2.4 … 63055」）；
+    //    b) 名称列为纯数字且无数量单价金额（如「2021.2.1 | 177843」，期初写在名称列）
+    if(opening == null && firstDataRow && !qty && !price && amtNum == null && payNum == null && balNum != null){
+      opening = balNum; openingNote = dateRaw || name || '期初'; firstDataRow = false;
+      continue;
+    }
+    if(opening == null && firstDataRow && !qty && !price && amtNum == null && payNum == null && balNum == null && name && /^\d+(\.\d+)?$/.test(name)){
+      opening = toNum(name); openingNote = '期初'; firstDataRow = false;
+      continue;
+    }
+    firstDataRow = false;
+    // ③ 汇总/小计/止 行：金额/单价/数量列是「X月小计/总计/…止」等文字标记，
+    //    或小计列有值但本行无数量单价金额（如残留行「0:'44' 6:'720'」）。
+    //    注意「2023年加工费」这类付款标记行不被 ^\d{4}年 拦（只拦纯「2023年」或「2023年货款/总账/…止」）
+    const isLabel = /小计|小结|总计|一共|共计|汇总|累计|总付款|总退货|止$|^\d{1,2}月$|^\d{4}年$|^\d{4}年(货款|总账|小计|合计|止|余额|底)/.test(amtRaw + '|' + price + '|' + qty + '|' + dateRaw + '|' + name);
+    // 金额列为日期/月份标记（如「26.1.20」「2025.1」）且无数量单价 → 汇总行（小计写在付款/余额列）；真实金额行都有数量/单价，不会误伤
+    const amtIsDateLabel = amtRaw && !qty && !price && /^\d{1,4}[./]\d{1,2}([./]\d{1,2})?$/.test(amtRaw);
+    if(isLabel || amtIsDateLabel || (subVal && !qty && !price && amtNum == null)) continue;
+    // ③.5 日期列为纯中文文字标签（如汇总行「0:'退货' 1:'37' 5:'91130'」）→ 跳过
+    if(dateRaw && !/\d/.test(dateRaw) && /[\u4e00-\u9fa5]/.test(dateRaw)) continue;
+    // ④ 退货行：名称/备注/金额列含「退货/退款」（金额可取自金额列或付款列，缺省 qty×price）
+    if(/退货|退款/.test(name + '|' + note + '|' + amtRaw)){
+      let amt = amtNum != null ? String(amtNum) : (payNum != null ? String(payNum) : '');
+      if(!amt && qty && price){ const v = toNum(qty) * toNum(price); if(isFinite(v)) amt = String(v); }
+      returns.push({ id: uid(), date: dateRaw ? cleanDate(dateRaw) : lastDate, name: name || '退货', unit: g(idx.unit) || '付', qty, price, amt, note });
+      continue;
+    }
+    // ④.5 日期列为纯数字残留（合并单元格残留如 '20'/'44'/'485'）且无数量单价金额名称 → 汇总/残留行跳过
+    if(dateRaw && /^\d{1,3}$/.test(dateRaw) && !qty && !price && amtNum == null && !name) continue;
+    // ⑤ 付款行：金额列为空 且（付款列有值，或无单价/数量/金额）。付款值：付款列 → 否则行内
+    //    （跳过日期/余额/小计/金额列）第一个数字。期初/付款常写在名称列（「2025.1.25 | 10000 | … | 43773」）
+    //    或单位列（「2022整年|加工费|13000」）；「FTA298返修 2000 件无单价」是货款行（有数量）不进 ⑤；
+    //    「脚套 200×1 金额列空、付款列 200」→ 源表余额流按付款扣减，也判付款
+    if(amtNum == null && (payNum != null || (!price && !qty))){
+      let pv = payNum;
+      if(pv == null){
+        // 名称列为纯数字 → 期初/付款值（「2025.1.25 | 10000 | … | 43773」）；
+        // 否则在行内（跳过日期/余额/小计/金额/名称列）找第一个数字（「2022整年|加工费|13000」付款在单位列）
+        if(name && /^\d+(\.\d+)?$/.test(name)){ pv = toNum(name); }
+        else{
+          for(let c = 0; c < row.length; c++){
+            if(c === idx.date || c === balCol || c === idx.subtotal || c === idx.amount || c === idx.name) continue;
+            const n = toNum(g(c));
+            if(n != null){ pv = n; break; }
+          }
+        }
+      }
+      if(pv == null && balNum != null){
+        // 余额差额兜底：付款列未写、行内无其他数字，但余额列比上一笔余额少（隐含付款，如「2021.10.20 … 28000」→ 隐含 3140）
+        let prevB = null;
+        for(let rr = r - 1; rr >= start; rr--){
+          const bb = toNum(grid[rr][balCol]);
+          if(bb != null){ prevB = bb; break; }
+        }
+        if(prevB != null && balNum < prevB) pv = prevB - balNum;
+      }
+      if(pv != null){
+        payments.push({ id: uid(), date: (dateRaw && /\d{4}/.test(dateRaw)) ? cleanDate(dateRaw) : lastDate, amount: String(pv), note: (name && /[\u4e00-\u9fa5]/.test(name)) ? name : note });
+        continue;
+      }
+    }
+    // ⑥ 空行
+    if(!name && !qty && !price && amtNum == null && payNum == null && balNum == null) continue;
+    // ⑥.7 纯余额行（期初已定后的余额标注行，如欠款期初后的「37690」余额行）→ 跳过，不产生货款/付款
+    if(!name && !qty && !price && amtNum == null && payNum == null && balNum != null && opening != null) continue;
+    // ⑥.5 有名称但无数量/单价/金额 → 备注/标记行跳过（避免「要配脚」等备注变空货款行）
+    if(name && !qty && !price && !amtNum) continue;
+    // ⑦ 金额/数量/单价列为文字 → 原表不计账，跳过（作废/补数/不计账/月份标记等）
+    if(amtRaw && /[\u4e00-\u9fa5]/.test(amtRaw)) continue;
+    if(qty && /[\u4e00-\u9fa5]/.test(qty)) continue;
+    if(price && /[\u4e00-\u9fa5]/.test(price)) continue;
+    // ⑧ 日期继承：含 4 位年份才作日期，否则视为残留/空（合并单元格继承上一行）
+    const date = (dateRaw && /\d{4}/.test(dateRaw)) ? (lastDate = cleanDate(dateRaw), cleanDate(dateRaw)) : lastDate;
+    // ⑨ 普通货款行
+    goods.push({ id: uid(), date, name: name, unit: g(idx.unit) || '付', qty, price, amt: amtNum != null ? String(amtNum) : '', waybill: g(idx.waybill), note });
+  }
+  return { goods, payments, returns, opening, openingNote };
+}
+function parseReturnsSheet(grid, headerRow, idx){
+  const start = gridIndexOf(grid, headerRow) + 1;
+  const rows = [];
+  let lastDate = '';
+  for(let r = start; r < grid.length; r++){
+    const g = (i) => (i == null || grid[r][i] == null) ? '' : String(grid[r][i]).trim();
+    const name = g(idx.name);
+    // 日期低级笔误自动补全（参考上一行日期年份）
+    let dateRaw = fixDateStr(g(idx.date), lastDate);
+    const amtRaw = g(idx.amount), amtNum = toNum(amtRaw);
+    const qty = g(idx.qty), price = g(idx.price);
+    // 日期列为纯中文文字标签（如汇总行「0:'退货' 1:'37' 5:'91130'」）→ 跳过
+    if(dateRaw && !/\d/.test(dateRaw) && /[\u4e00-\u9fa5]/.test(dateRaw)) continue;
+    if(/共计|总计|合计|累计/.test(dateRaw + '|' + name + '|' + grid[r].join('|'))) continue;
+    if(amtRaw && /[\u4e00-\u9fa5]/.test(amtRaw)) continue;
+    if(!name && !qty && !price && amtNum == null) continue;
+    if(dateRaw) lastDate = cleanDate(dateRaw);
+    const date = dateRaw ? cleanDate(dateRaw) : lastDate;
+    rows.push({ id: uid(), date, name, unit: g(idx.unit) || '付', qty, price, amt: amtNum != null ? String(amtNum) : '', note: '' });
+  }
+  return rows;
+}
+function parsePaymentsSheet(grid, headerRow, idx){
+  const start = gridIndexOf(grid, headerRow) + 1;
+  const rows = [];
+  for(let r = start; r < grid.length; r++){
+    const row = grid[r];
+    const g = (i) => (i == null || row[i] == null) ? '' : String(row[i]).trim();
+    // 日期低级笔误自动补全（「202.4.26」→「2026.4.26」，无上一行可参考时用当前年份）
+    let date = fixDateStr(g(idx.date), null);
+    if(/总计|合计|累计/.test(date + '|' + row.join('|'))) continue;
+    // 付款数据行必须日期列含 4 位年份（每笔付款都有日期）；日期列为残留数字/空 → 汇总行跳过
+    //（如 ea92690e 付款表末行「0:'485' 2:'1394304'」= 总计行，日期列是残留单号）
+    // 年份后允许跟「整年/加工费」等文字（如「2022整年 13000 加工费」「2023年加工费 8992」也是真实付款）；
+    // 但纯残留数字（<1000 或无分隔符的杂数）不行
+    if(!/^\d{4}[./年-]/.test(date) && !/^(19|20)\d{2}(年|整年)/.test(date)) continue;
+    // 付款值：优先付款列；表头与数据行列数错位（如表头「日期|空|空|付款|余额」数据行「日期|50000」）时，
+    // 取日期列右侧第一个数字兜底
+    let payNum = toNum(g(idx.pay));
+    if(payNum == null){
+      for(let c = (idx.date != null ? idx.date : 0) + 1; c < row.length; c++){
+        const n = toNum(g(c));
+        if(n != null){ payNum = n; break; }
+      }
+    }
+    if(payNum == null) continue;
+    rows.push({ id: uid(), date: cleanDate(date), amount: String(payNum), note: '' });
+  }
+  return rows;
+}
+// 总账表（classifySheet='summary'）解析：提取 期初 + 付款 + 退货 + 税金货款。
+// 总账里的月度汇总货款行（如「2025.1月 | 13095」）与明细表逐笔重复 → 忽略；
+// 总账独有的「税金」行（金额列有值、名称含税金）是应收的一部分 → 计为货款。
+// 注：总账表头常无名称列名（index 1 为空），名称列取日期列后一列。
+function parseSummarySheet(grid, headerRow, idx){
+  const start = gridIndexOf(grid, headerRow) + 1;
+  const goods = [], payments = [], returns = [];
+  let lastDate = '';
+  let opening = null, openingNote = '';
+  let ending = null; // 总账余额列最后一个非空值 = 源表期末
+  let totalGoods = null, totalPay = null, totalRet = null, receivable = null; // 汇总型总账的总计行
+  let nameCol = idx.name;
+  if(nameCol == null && idx.date != null) nameCol = idx.date + 1; // 总账名称列无表头名
+  let firstDataRow = true;
+  for(let r = start; r < grid.length; r++){
+    const row = grid[r];
+    const g = (i) => (i == null || row[i] == null) ? '' : String(row[i]).trim();
+    const name = g(nameCol);
+    // 日期低级笔误自动补全（参考上一行日期年份）
+    let dateRaw = fixDateStr(g(idx.date), lastDate);
+    const amtRaw = g(idx.amount), amtNum = toNum(amtRaw);
+    const qty = g(idx.qty), price = g(idx.price);
+    const payRaw = g(idx.pay), payNum = toNum(payRaw);
+    const balRaw = g(idx.balance), balNum = toNum(balRaw);
+    const note = g(idx.note);
+    // ①.5 汇总型总账的总计行（「累计总货款/总付款/总退货/应收余额」写在日期列；值在各计数列）
+    //    这些行不是逐笔明细，绝不能当付款/退货/期初计入（否则与明细表双重计入）。
+    //    必须先于 ① 期初判断：「应收余额」含「余额」字样，若先走期初分支会被误当本期初
+    //    （程序自导出文件的总账含这些行，重新导入时曾把「应收余额 1054148.6」当期初）
+    const label = name || dateRaw;
+    if(/累计总货款|总货款|总金额/.test(label)){
+      totalGoods = amtNum != null ? amtNum : (balNum != null ? balNum : totalGoods);
+      if(balNum != null) ending = balNum; firstDataRow = false; continue;
+    }
+    if(/总付款/.test(label)){
+      totalPay = payNum != null ? payNum : (amtNum != null ? amtNum : totalPay);
+      if(balNum != null) ending = balNum; firstDataRow = false; continue;
+    }
+    if(/总退货/.test(label)){
+      totalRet = amtNum != null ? amtNum : (payNum != null ? payNum : totalRet);
+      if(balNum != null) ending = balNum; firstDataRow = false; continue;
+    }
+    if(/应收余额/.test(label)){
+      receivable = balNum != null ? balNum : (amtNum != null ? amtNum : receivable);
+      if(balNum != null) ending = balNum; firstDataRow = false; continue;
+    }
+    // ① 期初（余额字样，值取余额列或行内最后一个数字）
+    if(/余额|结余|上年|年底|年初/.test(name + '|' + dateRaw + '|' + note)){
+      let pv = balNum;
+      if(pv == null){
+        for(let c = row.length - 1; c >= 0; c--){
+          const n = toNum(g(c));
+          if(n != null){ pv = n; break; }
+        }
+      }
+      if(pv != null && opening == null){ opening = pv; openingNote = name || dateRaw || note || '期初'; }
+      firstDataRow = false;
+      continue;
+    }
+    // ①.7 首行余额期初兜底：期初行无「余额」字样（如程序导出的总账「2024.12.31 | 760000」，
+    //    openingNote 只含日期）→ 首行仅余额列有值且无数量单价金额付款 → 为期初
+    if(opening == null && firstDataRow && !qty && !price && amtNum == null && payNum == null && balNum != null){
+      opening = balNum; openingNote = name || dateRaw || '期初'; firstDataRow = false;
+      continue;
+    }
+    firstDataRow = false;
+    // ② 退货行：名称含「退货/退款」，或名称是产品名（非 开票/刷卡/微信/现金/转账/税金/空）且付款列有值。
+    //    总账的扣减列只有一列（index 7）：付款（开票/刷卡/微信/空名）与退货（产品名，如「退货长脚套」「铁头子脚套」）混在同一列
+    if(/退货|退款/.test(name + '|' + note + '|' + amtRaw) ||
+       (amtNum == null && payNum != null && name && !/^(开票|刷卡|微信|现金|转账|税金)$/.test(name))){
+      let amt = amtNum != null ? String(amtNum) : (payNum != null ? String(payNum) : '');
+      if(!amt && qty && price){ const v = toNum(qty) * toNum(price); if(isFinite(v)) amt = String(v); }
+      returns.push({ id: uid(), date: dateRaw ? cleanDate(dateRaw) : lastDate, name: name || '退货', unit: g(idx.unit) || '付', qty, price, amt, note });
+      continue;
+    }
+    // ③ 付款行（金额列为空 + 付款列有值，或无单价/数量/金额）
+    if(amtNum == null && (payNum != null || (!price && !qty))){
+      let pv = payNum;
+      if(pv == null){
+        if(name && /^\d+(\.\d+)?$/.test(name)){ pv = toNum(name); }
+        else{
+          for(let c = 0; c < row.length; c++){
+            if(c === idx.date || c === idx.balance || c === idx.subtotal || c === idx.amount || c === nameCol) continue;
+            const n = toNum(g(c));
+            if(n != null){ pv = n; break; }
+          }
+        }
+      }
+      if(pv != null){
+        payments.push({ id: uid(), date: (dateRaw && /\d{4}/.test(dateRaw)) ? cleanDate(dateRaw) : lastDate, amount: String(pv), note: (name && /[\u4e00-\u9fa5]/.test(name)) ? name : note });
+        continue;
+      }
+    }
+    // ④ 税金货款行（名称含税金 + 金额列有值）→ 计为货款
+    if(amtNum != null && /税金/.test(name)){
+      goods.push({ id: uid(), date: (dateRaw && /\d{4}/.test(dateRaw)) ? (lastDate = cleanDate(dateRaw), cleanDate(dateRaw)) : lastDate, name: name || '税金', unit: g(idx.unit) || '付', qty, price, amt: String(amtNum), waybill: g(idx.waybill), note });
+      continue;
+    }
+    // ⑤ 其余（月度汇总货款行 / 空行 / 日期继承）→ 跳过（汇总与明细表逐笔重复）
+    if(balNum != null) ending = balNum; // 追踪总账期末（余额列最后值）
+    if(dateRaw) lastDate = cleanDate(dateRaw);
+  }
+  return { goods, payments, returns, opening, openingNote, ending, totalGoods, totalPay, totalRet, receivable };
+}
+function extractOpening(grid){
+  for(const row of grid){
+    if(!/期初|年底|上年|结余/.test(row.join('|'))) continue;
+    let lastNum = null;
+    for(let i = row.length - 1; i >= 0; i--){
+      if(row[i] == null || String(row[i]).trim() === '') continue;
+      const n = toNum(String(row[i]));
+      if(n != null) lastNum = n;
+      break;
+    }
+    if(lastNum == null) continue;
+    return { opening: lastNum, note: String(row[0] || '').trim() || '期初' };
+  }
+  return null;
+}
+async function parseImportXlsx(bytes){
+  const entries = await unzipBytes(bytes);
+  const dec = new TextDecoder();
+  const files = new Map();
+  entries.forEach((data, name) => files.set(name, dec.decode(data)));
+  const wb = parseXml(files.get('xl/workbook.xml'));
+  if(!wb) throw new Error('不是有效的 Excel (.xlsx) 文件');
+  const shared = files.has('xl/sharedStrings.xml') ? parseSharedStrings(files.get('xl/sharedStrings.xml')) : [];
+  const rels = parseXml(files.get('xl/_rels/workbook.xml.rels')) || { querySelectorAll: () => [] };
+  const relMap = {};
+  rels.querySelectorAll('Relationship').forEach(r => { relMap[r.getAttribute('Id')] = r.getAttribute('Target'); });
+  const sheets = [...wb.querySelectorAll('sheets sheet')].map(s => {
+    const rid = s.getAttribute('r:id') || s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+    const target = relMap[rid] || 'worksheets/sheet1.xml';
+    return { name: s.getAttribute('name'), file: target.indexOf('/') === 0 ? target.slice(1) : ('xl/' + target) };
+  });
+  const result = { goods: [], payments: [], returns: [], opening: null, openingNote: '', __sheetReturns: [], __summaryReturns: [], __summaryPayments: [], __summaryEnding: null };
+  // 预扫描：解析每个 sheet 并先确定期初（opening/openingNote）。多账期文件（如 2025 + 2024 两张连续年表）里，
+  // 期初注释带年份（如「2024年余额」）表示期初 = 该年年底余额，该年份及更早的账期表明细已含在期初中，不得重复计入。
+  const scan = [];
+  for(const s of sheets){
+    const xmlStr = files.get(s.file);
+    if(!xmlStr) continue;
+    const grid = sheetToGrid(xmlStr, shared);
+    const header = sheetHeaderRow(grid);
+    const idx = detectHeader(header);
+    const type = classifySheet(s.name, header, idx);
+    const item = { s, grid, header, idx, type, d: null };
+    if(type === 'goods') item.d = parseDetailSheet(grid, header, idx);
+    else if(type === 'summary') item.d = parseSummarySheet(grid, header, idx);
+    scan.push(item);
+    if(item.d && item.d.opening != null && result.opening == null){ result.opening = item.d.opening; result.openingNote = item.d.openingNote; }
+  }
+  // 账期跳过基准年 opYear：期初注释带年份时，标题年份 ≤ opYear 的明细账期表其数据已含在期初中，跳过（防重复计入）
+  // 语义区分：期初为「Y年底/余额」（如「2024年余额」「2024年底」）→ 含 Y 全年 → 跳 ≤ Y；
+  //          期初为「Y年M月」（如「2024.1月」「2024年1月」）→ 只含 Y 年之前的账期 → 跳 < Y（主表年份=Y 保留）
+  //          期初为纯数字日期「Y.M.D」（如「2026.1.14」「2021.2.1」「2024.12.31」）→ 只是时点标注，
+  //          不触发账期跳过（主表当年业务全算）——⚠ 程序自导出文件按年份拆表（行日期 2025 的 C085 会
+  //          被拆进「2025年货款」表），若纯日期期初也跳 ≤Y 会把主表年份内的跨年行误丢（曾致客户
+  //          「2026.1.28」期初重导入丢 C085 5600、另一客户「2026.1.14」期初丢 2026 货款 29 行）
+  let opYear = null;
+  if(result.openingNote){
+    const ym = /(19|20)\d{2}/.exec(result.openingNote);
+    if(ym){
+      const Y = parseInt(ym[0], 10);
+      const isPlainDate = /^(?:19|20)\d{2}[.\-\/]\d{1,2}(?:[.\-\/]\d{1,2})?$/.test(result.openingNote.trim());
+      if(!isPlainDate){
+        const dm = /(?:19|20)\d{2}[.\-\/年](\d{1,2})(?:[.\-\/月](\d{1,2})月?)?/.exec(result.openingNote);
+        if(dm){
+          const Mo = parseInt(dm[1], 10);
+          const D = dm[2] ? parseInt(dm[2], 10) : null;
+          if(Mo === 12 && (D == null || D >= 30)) opYear = Y; // 12月/12.30/12.31 → 年底，含全年
+          else opYear = Y - 1;                               // 年初/月中时点 → 只含之前账期
+        } else {
+          opYear = Y; // 无具体月日（「Y年余额/Y年底/结余/上年」）→ 含 Y 全年
+        }
+      }
+    }
+  }
+  for(const it of scan){
+    // 期初注释带年份时，跳过「标题年份 ≤ 期初年份」的明细账期表（期初已含其全部数据）；总账(summary)不跳过
+    if(opYear != null && it.type !== 'summary'){
+      const m = /^(\d{4})年/.exec(it.s.name);
+      if(m && parseInt(m[1], 10) <= opYear) continue;
+    }
+    const { grid, header, idx, type, d } = it;
+    if(type === 'goods'){
+      result.goods = result.goods.concat(d.goods);
+      result.payments = result.payments.concat(d.payments);
+      result.returns = result.returns.concat(d.returns);
+      result.__sheetReturns = result.__sheetReturns.concat(d.returns); // 明细表退货（供自检：不在总账退货区的可疑项）
+    }
+    else if(type === 'returns') result.returns = result.returns.concat(parseReturnsSheet(grid, header, idx));
+    else if(type === 'payments') result.payments = result.payments.concat(parsePaymentsSheet(grid, header, idx));
+    else if(type === 'summary'){
+      if(d.ending != null) result.__summaryEnding = d.ending;
+      result.__summaryReturns = result.__summaryReturns.concat(d.returns);
+      result.__summaryPayments = result.__summaryPayments.concat(d.payments); // 总账付款（供自检：明细缺失时自动补齐）
+      // 汇总型总账的总计行（累计总货款/总付款/总退货/应收余额）→ 作为总账权威值供逐项核对
+      result.__summaryTotals = result.__summaryTotals || {};
+      if(d.totalGoods != null) result.__summaryTotals.totalGoods = d.totalGoods;
+      if(d.totalPay != null) result.__summaryTotals.totalPay = d.totalPay;
+      if(d.totalRet != null) result.__summaryTotals.totalRet = d.totalRet;
+      if(d.receivable != null) result.__summaryTotals.receivable = d.receivable;
+      // 总账的付款/退货只与「其他 sheet」去重（同指纹只留一条）——不能对总账内部去重：
+      // 同日同金额的多笔付款（如 2025.1.25 开票 50000 + 刷卡 50000）指纹相同但都是有效付款
+      const pf = new Set(result.payments.map(r => rowFp(r, 'payments')));
+      for(const r of d.payments){
+        const fp = rowFp(r, 'payments');
+        if(!pf.has(fp)) result.payments.push(r);
+      }
+      const rf = new Set(result.returns.map(r => rowFp(r, 'returns')));
+      for(const r of d.returns){
+        const fp = rowFp(r, 'returns');
+        if(!rf.has(fp)) result.returns.push(r);
+      }
+      result.goods = result.goods.concat(d.goods); // 税金货款（仅总账有）
+    }
+  }
+  if(!result.goods.length && !result.payments.length && !result.returns.length){
+    throw new Error('未能从这个文件里识别出对账单数据（货款/付款/退货表）');
+  }
+  // 自检（总账优先）：有总账表时，以总账期末为权威核对程序口径（期初 + 货款 − 付款 − 退货）。
+  // 自动反思：不一致时按顺序尝试 —— ①排除明细标「退货」但总账未扣的行（ZL069 类）；
+  // ②补齐总账有而明细缺的付款（总账是权威）；③仍不一致则输出各项差额分析供用户核对。
+  if(result.__summaryEnding != null){
+    const sum = (list, key) => list.reduce((s, r) => s + (toNum(r[key]) || 0), 0);
+    const ending0 = (result.opening || 0) + sum(result.goods, 'amt') - sum(result.payments, 'amount') - sum(result.returns, 'amt');
+    const sf = new Set(result.__summaryReturns.map(r => rowFp(r, 'returns')));
+    const suspicious = (result.__sheetReturns || []).filter(r => !sf.has(rowFp(r, 'returns')));
+    let excluded = [], ending = ending0;
+    // ① 明细退货但总账未扣 → 排除（保护：仅当排除后期末与总账一致才执行，避免误伤）
+    if(suspicious.length){
+      const exSet = new Set(suspicious.map(r => rowFp(r, 'returns')));
+      const filtered = result.returns.filter(r => !exSet.has(rowFp(r, 'returns')));
+      const endAfter = (result.opening || 0) + sum(result.goods, 'amt') - sum(result.payments, 'amount') - sum(filtered, 'amt');
+      if(Math.abs(endAfter - result.__summaryEnding) < 0.01){ result.returns = filtered; excluded = suspicious; ending = endAfter; }
+    }
+    // ② 总账付款有、明细缺（指纹差）→ 自动补齐（总账权威；补齐后必须期末一致才采用）
+    let addedPay = [];
+    if(Math.abs(result.__summaryEnding - ending) > 0.01){
+      const pfSet = new Set(result.payments.map(r => rowFp(r, 'payments')));
+      const missing = (result.__summaryPayments || []).filter(r => !pfSet.has(rowFp(r, 'payments')));
+      if(missing.length){
+        const endAdd = ending - sum(missing, 'amount');
+        if(Math.abs(result.__summaryEnding - endAdd) < 0.01){
+          result.payments = result.payments.concat(missing);
+          addedPay = missing; ending = endAdd;
+        }
+      }
+    }
+    // ③ 期末复核 + 差异分析（有总账必输出：diff=0 显示「已核对一致」，不一致显示各项差额）
+    const diff = Math.round((result.__summaryEnding - ending) * 100) / 100;
+    // ③.5 汇总型总账逐项对比（总账权威值 vs 程序逐笔合计 → 指出「问题出在哪一项」）
+    const t = result.__summaryTotals || {};
+    const round2 = (x) => Math.round(x * 100) / 100;
+    const itemDiffs = [];
+    const gSum = sum(result.goods, 'amt'), pSum = sum(result.payments, 'amount'), rSum = sum(result.returns, 'amt');
+    if(t.totalGoods != null && Math.abs(t.totalGoods - gSum) > 0.01) itemDiffs.push({ key: '货款', book: t.totalGoods, calc: round2(gSum) });
+    if(t.totalPay != null && Math.abs(t.totalPay - pSum) > 0.01) itemDiffs.push({ key: '付款', book: t.totalPay, calc: round2(pSum) });
+    if(t.totalRet != null && Math.abs(t.totalRet - rSum) > 0.01) itemDiffs.push({ key: '退货', book: t.totalRet, calc: round2(rSum) });
+    if(t.receivable != null){
+      const rec = (result.opening || 0) + gSum;
+      if(Math.abs(t.receivable - rec) > 0.01) itemDiffs.push({ key: '应收余额', book: t.receivable, calc: round2(rec) });
+    }
+    if(Math.abs(diff) > 0.01 || excluded.length || addedPay.length || itemDiffs.length){
+      result.selfCheck = {
+        ending: result.__summaryEnding,
+        computedEnding: Math.round(ending * 100) / 100,
+        diff, suspicious, excluded: excluded.length, addedPay: addedPay.length, itemDiffs,
+        // 各项对比（供用户核对差异来源）
+        sums: {
+          opening: result.opening != null ? round2(toNum(result.opening)) : null,
+          goods: round2(gSum),
+          payments: round2(pSum),
+          returns: round2(rSum),
+        },
+      };
+    } else {
+      // 期末与总账完全一致（无排除/补齐/逐项差异）→ 仍生成核对结果供 UI 显示「总账优先核对一致」
+      result.selfCheck = { ending: result.__summaryEnding, computedEnding: Math.round(ending * 100) / 100, diff: 0, suspicious: [], excluded: 0, addedPay: 0, itemDiffs: [], sums: { opening: result.opening != null ? round2(toNum(result.opening)) : null, goods: round2(gSum), payments: round2(pSum), returns: round2(rSum) } };
+    }
+  }
+  // ③⑥ 异常行收集：金额与数量×单价不一致（amtDiff）、无日期（noDate）、金额≤0（zeroRows）
+  const warnings = { amtDiff: [], noDate: 0, zeroRows: [] };
+  for(const r of result.goods){
+    const locked = toNum(r.amt), q = toNum(r.qty), p = toNum(r.price);
+    if(locked != null && q != null && p != null && Math.abs(locked - round2(q * p)) > 0.01){
+      warnings.amtDiff.push({ date: r.date, name: r.name, amt: locked, calc: round2(q * p) });
+    }
+    if(!String(r.date || '').trim()) warnings.noDate++;
+    const amtVal = locked != null ? locked : (q != null && p != null ? round2(q * p) : null);
+    if(amtVal != null && amtVal <= 0) warnings.zeroRows.push({ date: r.date, name: r.name, amt: amtVal });
+  }
+  result.warnings = warnings;
+  // ⑤ 付款重复警示：同日期同金额 ≥2 笔（可能是同一笔被记两次，也可能是多笔真实付款，提醒确认）
+  const payDupes = [];
+  {
+    const pm = new Map();
+    for(const r of result.payments){
+      const k = String(r.date || '').trim() + '|' + String(r.amount || '').trim();
+      if(!pm.has(k)) pm.set(k, []);
+      pm.get(k).push(r);
+    }
+    for(const arr of pm.values()){
+      if(arr.length >= 2) payDupes.push({ date: arr[0].date, amount: arr[0].amount, count: arr.length });
+    }
+  }
+  result.payDupes = payDupes;
+  return result;
+}
+function rowFp(r, kind){
+  if(kind === 'payments') return 'P\u0001' + String(r.date || '').trim() + '\u0001' + String(r.amount || '').trim();
+  return (kind === 'goods' ? 'G' : 'R') + '\u0001' + String(r.date || '').trim() + '\u0001' + String(r.name || '').trim() + '\u0001' + String(r.qty || '').trim() + '\u0001' + String(r.price || '').trim() + '\u0001' + String(r.unit || '').trim() + '\u0001' + String(r.waybill || '').trim() + '\u0001' + String(r.note || '').trim();
+}
+function mergeImport(parsed, mode){
+  const stats = { goods: 0, goodsDup: 0, payments: 0, paymentsDup: 0, returns: 0, returnsDup: 0 };
+  if(mode === 'overwrite'){
+    state.goods = parsed.goods.slice();
+    state.payments = parsed.payments.slice();
+    state.returns = parsed.returns.slice();
+    if(parsed.opening != null) state.opening = String(parsed.opening);
+    if(parsed.openingNote) state.openingNote = parsed.openingNote;
+    stats.goods = parsed.goods.length; stats.payments = parsed.payments.length; stats.returns = parsed.returns.length;
+    sortByDate(state.goods); sortByDate(state.payments); sortByDate(state.returns); // 导入后按日期排好
+    return stats;
+  }
+  // 计数式去重：同一指纹在 state 中已有 n 条才算 n 条重复；文件内同款多行保留
+  let countMap = new Map();
+  for(const r of state.goods){ const fp = rowFp(r, 'goods'); countMap.set(fp, (countMap.get(fp) || 0) + 1); }
+  for(const r of parsed.goods){
+    const fp = rowFp(r, 'goods');
+    const have = countMap.get(fp) || 0;
+    if(have > 0){ countMap.set(fp, have - 1); stats.goodsDup++; }
+    else { countMap.set(fp, 0); state.goods.push(r); stats.goods++; }
+  }
+  countMap = new Map();
+  for(const r of state.payments){ const fp = rowFp(r, 'payments'); countMap.set(fp, (countMap.get(fp) || 0) + 1); }
+  for(const r of parsed.payments){
+    const fp = rowFp(r, 'payments');
+    const have = countMap.get(fp) || 0;
+    if(have > 0){ countMap.set(fp, have - 1); stats.paymentsDup++; }
+    else { countMap.set(fp, 0); state.payments.push(r); stats.payments++; }
+  }
+  countMap = new Map();
+  for(const r of state.returns){ const fp = rowFp(r, 'returns'); countMap.set(fp, (countMap.get(fp) || 0) + 1); }
+  for(const r of parsed.returns){
+    const fp = rowFp(r, 'returns');
+    const have = countMap.get(fp) || 0;
+    if(have > 0){ countMap.set(fp, have - 1); stats.returnsDup++; }
+    else { countMap.set(fp, 0); state.returns.push(r); stats.returns++; }
+  }
+  if(parsed.opening != null && !state.opening) state.opening = String(parsed.opening);
+  if(parsed.openingNote && !state.openingNote) state.openingNote = parsed.openingNote;
+  sortByDate(state.goods); sortByDate(state.payments); sortByDate(state.returns); // 追加导入后按日期排好
+  return stats;
+}
+function buildImportSummary(parsed){
+  const dupCount = (list, kind) => {
+    const cm = new Map();
+    for(const r of state[kind]){ const fp = rowFp(r, kind); cm.set(fp, (cm.get(fp) || 0) + 1); }
+    let dup = 0;
+    for(const r of parsed[kind]){ const fp = rowFp(r, kind); const have = cm.get(fp) || 0; if(have > 0){ cm.set(fp, have - 1); dup++; } }
+    return dup;
+  };
+  const dupG = dupCount('goods', 'goods');
+  const dupP = dupCount('payments', 'payments');
+  const dupR = dupCount('returns', 'returns');
+  let h = '';
+  h += '识别到：<b>货款明细 ' + parsed.goods.length + ' 行</b>（新增 ' + (parsed.goods.length - dupG) + '，重复 ' + dupG + '）<br>';
+  h += '识别到：<b>付款流水 ' + parsed.payments.length + ' 行</b>（新增 ' + (parsed.payments.length - dupP) + '，重复 ' + dupP + '）<br>';
+  h += '识别到：<b>退货记录 ' + parsed.returns.length + ' 行</b>（新增 ' + (parsed.returns.length - dupR) + '，重复 ' + dupR + '）<br>';
+  if(parsed.opening != null) h += '期初余额：<b>' + parsed.opening + '</b>（' + esc(parsed.openingNote || '期初') + '）<br>';
+  if(state.goods.length || state.payments.length || state.returns.length){
+    h += '<span style="color:#a35">当前已有数据：货款 ' + state.goods.length + ' 行、付款 ' + state.payments.length + ' 行、退货 ' + state.returns.length + ' 行</span><br>';
+  }
+  if(parsed.selfCheck){
+    const sc = parsed.selfCheck;
+    const bad = Math.abs(sc.diff) > 0.01;
+    const tone = bad ? 'color:#c0392b;border:1px solid #e5b8b2;background:#fdf3f1' : 'color:#1e8449;border:1px solid #b8e0c4;background:#f0faf3';
+    h += '<div style="font-weight:600;margin-top:10px;' + tone + ';border-radius:6px;padding:8px;line-height:1.8">';
+    h += '📒 <b>总账优先核对</b>：本文件含总账表，期末以总账为准。';
+    if(sc.addedPay > 0){
+      h += '<br>✅ <b>已自动从总账补齐付款 ' + sc.addedPay + ' 笔</b>（明细表漏记，总账为准），期末已核对一致。';
+    }
+    if(sc.excluded){
+      h += '<br>⚠️ <b>以下行标记了「退货」但你的总账没有扣减，已按总账口径不记录：</b>' +
+        sc.suspicious.map(r => '<b>' + esc(r.name || '退货') + '（' + (r.date || '') + '）' + (r.amt || '') + '元</b>').join('、') + '。';
+    }
+    if(bad){
+      h += '<br>⚠️ <b>期末自检不一致</b>：按本文件数据算出期末 <b>' + sc.computedEnding + '</b>，与总账期末 <b>' + sc.ending + '</b> 相差 <b>' + (sc.diff > 0 ? '+' : '') + sc.diff + '</b> 元。';
+      if(sc.itemDiffs && sc.itemDiffs.length){
+        h += '<br>📌 <b>已自动逐项对比（问题出在哪）：</b>' + sc.itemDiffs.map(d => '<b>' + d.key + '</b>：总账 <b>' + d.book + '</b> vs 逐笔合计 <b>' + d.calc + '</b>').join('；') + '。';
+      } else {
+        h += '<br>已自动核对各项：期初 <b>' + (sc.sums.opening ?? '无') + '</b>、货款合计 <b>' + sc.sums.goods + '</b>、付款合计 <b>' + sc.sums.payments + '</b>、退货合计 <b>' + sc.sums.returns + '</b>。';
+      }
+      h += '<br>请对照检查后，可在对应页面手动调整再导入。';
+    } else if(!sc.addedPay && !sc.excluded){
+      h += '<br>✅ 期末已与总账核对一致：<b>' + sc.computedEnding + '</b>。';
+    }
+    h += '</div>';
+  } else {
+    // 无总账表 → 提示按明细逐笔核对（让用户明白为何没走「总账优先」）
+    h += '<div style="color:#7f8c8d;font-weight:600;margin-top:10px;border:1px solid #d5d8dc;background:#f8f9f9;border-radius:6px;padding:8px;line-height:1.8">ℹ️ 本文件<b>没有总账表</b>，已按明细逐笔核对（期初 + 货款 − 付款 − 退货）。<br>若期末数字与期望不符，请发源文件给我，我再排查。</div>';
+  }
+  // ④ 同客户多文件核对：已有期初 vs 导入期初不一致 → 可能是同一客户的不同账期或重复账期，提醒确认
+  if(state.opening && parsed.opening != null && Math.abs((toNum(state.opening) || 0) - (toNum(parsed.opening) || 0)) > 0.01){
+    h += '<div style="color:#9a6700;border:1px solid #f0d9a8;background:#fdf8ec;border-radius:6px;padding:8px;margin-top:8px;line-height:1.8">⚠️ <b>期初不一致</b>：当前客户期初 <b>' + esc(state.opening) + '</b>（' + esc(state.openingNote || '期初') + '）vs 本文件期初 <b>' + parsed.opening + '</b>（' + esc(parsed.openingNote || '期初') + '）。<br>如果这是同一客户<b>不同账期</b>的文件，请只保留一个期初（通常以最早的账期为准，或用「覆盖」模式）；如果是<b>重复导入</b>同一账期，请取消。请确认后再导入。</div>';
+  }
+  // ③ 异常行警示 + ⑥ 金额差异明细
+  const w = parsed.warnings;
+  if(w && (w.noDate || w.amtDiff.length || w.zeroRows.length)){
+    const warns = [];
+    if(w.noDate) warns.push('<b>' + w.noDate + ' 笔货款没有日期</b>（无法按年/月统计）');
+    if(w.amtDiff.length) warns.push('<b>' + w.amtDiff.length + ' 笔金额与数量×单价不一致</b>');
+    if(w.zeroRows.length) warns.push('<b>' + w.zeroRows.length + ' 笔金额为 0 或负数</b>');
+    h += '<div style="color:#9a6700;border:1px solid #f0d9a8;background:#fdf8ec;border-radius:6px;padding:8px;margin-top:8px;line-height:1.8">⚠️ 请留意：' + warns.join('；') + '。<br><span style="font-size:12px">如果这些行是有意为之（赠送、手填金额等）可以忽略；如果不对请先检查源文件。</span></div>';
+    if(w.amtDiff.length){
+      h += '<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:#9a6700">📋 查看金额与数量×单价不一致的明细（' + w.amtDiff.length + ' 笔，前 20）</summary><div style="font-size:12px;line-height:1.8;max-height:170px;overflow:auto;border:1px solid #f0d9a8;border-radius:6px;padding:6px;margin-top:4px">' +
+        w.amtDiff.slice(0, 20).map(d => esc(d.date || '无日期') + '　' + esc(d.name || '?') + '：金额 <b>' + d.amt + '</b> vs 数量×单价 <b>' + d.calc + '</b>').join('<br>') +
+        (w.amtDiff.length > 20 ? '<br>…还有 ' + (w.amtDiff.length - 20) + ' 笔' : '') + '</div></details>';
+    }
+  }
+  // ⑤ 付款重复警示
+  if(parsed.payDupes && parsed.payDupes.length){
+    h += '<div style="color:#9a6700;border:1px solid #f0d9a8;background:#fdf8ec;border-radius:6px;padding:8px;margin-top:8px;line-height:1.8">⚠️ <b>付款中有 ' + parsed.payDupes.length + ' 组同日同金额</b>，请确认不是同一笔被记了两次：' +
+      parsed.payDupes.slice(0, 5).map(d => '<b>' + esc(d.date || '无日期') + '　' + d.amount + ' 元</b> ×' + d.count + ' 笔').join('、') +
+      (parsed.payDupes.length > 5 ? ' …等' : '') + '。</div>';
+  }
+  return h;
+}
+/* ================= 导入保护：备份 / 撤销 / 覆盖对比 ================= */
+// ① 导入前快照：整个数据库深拷贝存备份槽，导入后可一键回退
+function saveImportBackup(){
+  try{
+    if(!db.current || !db.customers[db.current]) return;
+    db.customers[db.current] = state; // 引用同步兜底
+    const snap = { v: db.v, current: db.current, customers: JSON.parse(JSON.stringify(db.customers)) };
+    localStorage.setItem('zhineng-import-backup', JSON.stringify(snap));
+  }catch(e){}
+}
+function showUndoBar(){
+  const bar = document.getElementById('undoBar');
+  if(bar){ bar.style.display = 'flex'; setTimeout(() => { try{ if(bar.style.display === 'flex') bar.style.display = 'none'; }catch(_){} }, 60000); }
+}
+function hideUndoBar(){
+  const bar = document.getElementById('undoBar');
+  if(bar) bar.style.display = 'none';
+}
+function undoImport(){
+  const raw = localStorage.getItem('zhineng-import-backup');
+  if(!raw){ alert('没有可撤销的导入记录。'); return; }
+  try{
+    const snap = JSON.parse(raw);
+    if(!snap || !snap.customers || !Object.keys(snap.customers).length){ localStorage.removeItem('zhineng-import-backup'); alert('备份数据无效，无法撤销。'); return; }
+    if(!confirm('确定撤销本次导入？当前数据将恢复到导入前的状态（导入新增的内容会被移除）。')){
+      return;
+    }
+    db = { v: snap.v || 2, current: snap.current, customers: snap.customers };
+    if(!db.customers[db.current]) db.current = Object.keys(db.customers)[0];
+    state = db.customers[db.current];
+    save();
+    renderCustomerSelector(); syncSettingsInputs();
+    rerenderEditors(); renderAllPreviews();
+    hideUndoBar();
+    alert('已撤销本次导入，数据恢复到导入前的状态。');
+  }catch(e){ alert('撤销失败：' + e.message); }
+}
+// ② 覆盖模式对比表：现有数据 vs 导入数据
+function buildCompareHTML(parsed){
+  const sum = (list, key) => list.reduce((s, r) => s + (toNum(r[key]) || 0), 0);
+  let h = '<div style="font-weight:700;color:#c0392b;margin:6px 0 4px">⚠️ 覆盖模式：将用导入数据替换当前客户的<b>全部</b>数据</div>';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:6px">';
+  h += '<tr style="background:#f2f5f9"><th style="padding:5px;border:1px solid #d5d9e2;text-align:left">项目</th><th style="padding:5px;border:1px solid #d5d9e2">现有数据</th><th style="padding:5px;border:1px solid #d5d9e2">导入数据</th></tr>';
+  const rows = [
+    ['期初', state.opening || '—', parsed.opening != null ? String(parsed.opening) : '—'],
+    ['货款', state.goods.length + ' 行 / ' + round2(sum(state.goods, 'amt')), parsed.goods.length + ' 行 / ' + round2(sum(parsed.goods, 'amt'))],
+    ['付款', state.payments.length + ' 行 / ' + round2(sum(state.payments, 'amount')), parsed.payments.length + ' 行 / ' + round2(sum(parsed.payments, 'amount'))],
+    ['退货', state.returns.length + ' 行 / ' + round2(sum(state.returns, 'amt')), parsed.returns.length + ' 行 / ' + round2(sum(parsed.returns, 'amt'))],
+  ];
+  for(const [k, a, b] of rows){
+    h += '<tr><td style="padding:5px;border:1px solid #d5d9e2">' + k + '</td><td style="padding:5px;border:1px solid #d5d9e2;text-align:right">' + esc(a) + '</td><td style="padding:5px;border:1px solid #d5d9e2;text-align:right">' + esc(b) + '</td></tr>';
+  }
+  h += '</table><div style="font-size:12px;color:#c0392b">请核对上方数字后再点一次「确认覆盖导入」才真正执行；现有数据被替换后可通过「撤销本次导入」找回（导入前已自动备份）。</div>';
+  return h;
+}
+function summaryLine(s){
+  const parts = [];
+  if(s.goods) parts.push('货款 +' + s.goods);
+  if(s.goodsDup) parts.push('货款跳过重复 ' + s.goodsDup);
+  if(s.payments) parts.push('付款 +' + s.payments);
+  if(s.paymentsDup) parts.push('付款跳过重复 ' + s.paymentsDup);
+  if(s.returns) parts.push('退货 +' + s.returns);
+  if(s.returnsDup) parts.push('退货跳过重复 ' + s.returnsDup);
+  return parts.join('，') || '没有新增记录';
+}
+
+/* ================= XLSX 导出（自实现，无外部依赖） ================= */
+function crc32(data){
+  if(!crc32.table){
+    crc32.table = new Int32Array(256);
+    for(let i = 0; i < 256; i++){ let c = i; for(let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); crc32.table[i] = c; }
+  }
+  const table = crc32.table;
+  let crc = -1;
+  for(let i = 0; i < data.length; i++) crc = (crc >>> 8) ^ table[(crc ^ data[i]) & 0xFF];
+  return (crc ^ -1) >>> 0;
+}
+function zipStore(files){
+  const enc = new TextEncoder();
+  const parts = [];
+  const centralParts = [];
+  let offset = 0;
+  for(const f of files){
+    const nameBytes = enc.encode(f.name);
+    const crc = crc32(f.data);
+    const local = new Uint8Array(30);
+    const dv = new DataView(local.buffer);
+    dv.setUint32(0, 0x04034b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint16(8, 0, true);
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, f.data.length, true);
+    dv.setUint32(22, f.data.length, true);
+    dv.setUint16(26, nameBytes.length, true);
+    parts.push(local, nameBytes, f.data);
+    const cr = new Uint8Array(46);
+    const cdv = new DataView(cr.buffer);
+    cdv.setUint32(0, 0x02014b50, true);
+    cdv.setUint16(4, 20, true);
+    cdv.setUint16(6, 20, true);
+    cdv.setUint32(16, crc, true);
+    cdv.setUint32(20, f.data.length, true);
+    cdv.setUint32(24, f.data.length, true);
+    cdv.setUint16(28, nameBytes.length, true);
+    cdv.setUint32(42, offset, true);
+    centralParts.push(cr, nameBytes);
+    offset += 30 + nameBytes.length + f.data.length;
+  }
+  const cdStart = offset;
+  let cdLen = 0;
+  for(const p of centralParts) cdLen += p.length;
+  for(const p of centralParts) parts.push(p);
+  const eocd = new Uint8Array(22);
+  const edv = new DataView(eocd.buffer);
+  edv.setUint32(0, 0x06054b50, true);
+  edv.setUint16(4, 0, true);       // this disk
+  edv.setUint16(6, 0, true);       // cd start disk
+  edv.setUint16(8, files.length, true);  // entries this disk
+  edv.setUint16(10, files.length, true); // total entries
+  edv.setUint32(12, cdLen, true);  // cd size
+  edv.setUint32(16, cdStart, true);// cd offset
+  edv.setUint16(20, 0, true);      // comment length
+  parts.push(eocd);
+  let total = 0; for(const p of parts) total += p.length;
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for(const p of parts){ out.set(p, pos); pos += p.length; }
+  return out;
+}
+function colName(n){ let s = ''; while(n > 0){ const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+function sheetXml(spec){
+  const ncols = spec.colCount;
+  let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  xml += '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+  if(spec.widths){
+    xml += '<cols>';
+    spec.widths.forEach((w, i) => { xml += '<col min="' + (i+1) + '" max="' + (i+1) + '" width="' + w + '" customWidth="1"/>'; });
+    xml += '</cols>';
+  }
+  xml += '<sheetData>';
+  const merges = [];
+  let r = 1;
+  if(spec.title){ merges.push('A' + r + ':' + colName(ncols) + r); xml += rowXml(r, [{v: spec.title, s: 4}], ncols); r++; }
+  if(spec.sub){ merges.push('A' + r + ':' + colName(ncols) + r); xml += rowXml(r, [{v: spec.sub, s: 0}], ncols); r++; }
+  if(spec.headers){ xml += rowXml(r, spec.headers.map(h => ({v: h, s: 2})), ncols); r++; }
+  for(const cells of spec.rows){ xml += rowXml(r, cells, ncols); r++; }
+  xml += '</sheetData>';
+  if(merges.length){
+    xml += '<mergeCells count="' + merges.length + '">';
+    merges.forEach(m => { xml += '<mergeCell ref="' + m + '"/>'; });
+    xml += '</mergeCells>';
+  }
+  xml += '</worksheet>';
+  return xml;
+}
+function rowXml(r, cells, ncols){
+  let xml = '<row r="' + r + '">';
+  for(let c = 1; c <= ncols; c++){
+    const cell = cells[c - 1];
+    if(cell === null || cell === undefined) continue;
+    let v, s = 0, t = 's';
+    if(typeof cell === 'object'){ v = cell.v; s = cell.s || 0; t = cell.t || 's'; } else { v = cell; }
+    if(v === null || v === undefined || v === '') continue;
+    const ref = colName(c) + r;
+    if(typeof v === 'number' || t === 'n'){
+      xml += '<c r="' + ref + '" s="' + s + '" t="n"><v>' + v + '</v></c>';
+    } else {
+      xml += '<c r="' + ref + '" s="' + s + '" t="inlineStr"><is><t xml:space="preserve">' + esc(v) + '</t></is></c>';
+    }
+  }
+  xml += '</row>';
+  return xml;
+}
+const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+  + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+  + '<fonts count="3">'
+  + '<font><sz val="11"/><name val="宋体"/></font>'
+  + '<font><b/><sz val="11"/><name val="宋体"/></font>'
+  + '<font><b/><sz val="13"/><name val="宋体"/></font>'
+  + '</fonts>'
+  + '<fills count="4">'
+  + '<fill><patternFill patternType="none"/></fill>'
+  + '<fill><patternFill patternType="gray125"/></fill>'
+  + '<fill><patternFill patternType="solid"><fgColor rgb="FFF2F2F2"/><bgColor indexed="64"/></patternFill></fill>'
+  + '<fill><patternFill patternType="solid"><fgColor rgb="FFFDE9D9"/><bgColor indexed="64"/></patternFill></fill>'
+  + '</fills>'
+  + '<borders count="2">'
+  + '<border><left/><right/><top/><bottom/><diagonal/></border>'
+  + '<border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>'
+  + '</borders>'
+  + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+  + '<cellXfs count="5">'
+  + '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0"/>'
+  + '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1"/>'
+  + '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1"/>'
+  + '<xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1"/>'
+  + '<xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+  + '</cellXfs>'
+  + '</styleSheet>';
+
+function buildXlsxFiles(){
+  const files = [];
+  const sheets = [];
+  const n = (x) => (x == null || !isFinite(x)) ? null : round2(x);
+
+  // —— 总账 ——
+  {
+    const srows = buildSummaryRows();
+    const rows = srows.map(r => [r.label, n(r.goods), n(r.pay), n(r.ret), n(r.bal)]);
+    sheets.push({
+      name: '总账',
+      spec: { title: (state.partyA||'甲方') + '与' + (state.partyB||'乙方') + '的总账', sub: state.cutoffNote || '', headers: ['日期', '货款', '付款', '退货', '余额'], rows, colCount: 5, widths: [16, 14, 14, 14, 16] }
+    });
+  }
+
+  // —— 货款（按年分 sheet） ——
+  const groups = buildGoodsGroups(state.goods);
+  const yt = yearTotals(groups);
+  const byYear = new Map();
+  for(const g of groups){ const y = yearOf(g.key); if(!byYear.has(y)) byYear.set(y, []); byYear.get(y).push(g); }
+  const years = [...byYear.keys()].sort((a, b) => (a == null ? 1e9 : a) - (b == null ? 1e9 : b));
+  const balSer = balanceSeries();
+  const gIdx = new Map(); state.goods.forEach((r, i) => gIdx.set(r.id, i));
+  for(const y of years){
+    const gg = byYear.get(y);
+    const rows = [];
+    for(const g of gg){
+      let ms = 0;
+      let last = ''; // 组内日期继承：空日期默认同前一天
+      for(const r of g.rows){
+        const a = rowAmount(r);
+        if(a != null) ms += a;
+        const dd = String(r.date || '').trim();
+        if(dd) last = dd;
+        const d = parseDateParts(last);
+        const dateTxt = d ? d.y + '.' + (d.mo || '') + (d.d ? '.' + d.d : '') : r.date;
+        const bal = balSer.map.get(gIdx.get(r.id));
+        rows.push([dateTxt, r.name, r.unit || '', n(toNum(r.qty)), n(toNum(r.price)), n(a), bal == null ? null : n(bal), '', r.waybill || '', r.note || '']);
+      }
+      if(g.key != null && g.key % 100 !== 0){
+        rows.push([null, null, null, null, null, g.label + '小计', null, n(ms), null, null]);
+      }
+    }
+    const ytList = yt.filter(t => t.year === y);
+    for(const t of ytList){
+      rows.push([t.year + '年货款', '总计', null, null, null, null, null, n(t.total), null, null]);
+    }
+    const sheetName = (y == null ? '未标注日期货款' : y + '年货款');
+    sheets.push({
+      name: sheetName,
+      spec: { title: (y == null ? (state.partyA||'甲方') + '与' + (state.partyB||'乙方') + '的货款（未标注日期）' : y + '年' + (state.partyA||'甲方') + '与' + (state.partyB||'乙方') + '的对账单'), sub: state.cutoffNote || '', headers: ['日期', '名称及规格', '单位', '数量', '单价', '金额', '余额', '小计', '发货单号', '备注'], rows, colCount: 10, widths: [13, 22, 8, 10, 10, 12, 12, 12, 14, 16] }
+    });
+  }
+
+  // —— 付款 ——
+  {
+    const rows = [];
+    let cum = 0;
+    for(const r of sortByDate(state.payments)){
+      const a = toNum(r.amount); if(a != null) cum = round2(cum + a);
+      rows.push([r.date || '', n(a), r.note || '', n(cum)]);
+    }
+    rows.push(['总计付款', n(cum), null, null]);
+    sheets.push({
+      name: '付款',
+      spec: { title: (state.partyB||'乙方') + '付给' + (state.partyA||'甲方') + '的货款', sub: state.cutoffNote || '', headers: ['日期', '付款', '备注', '累计付款'], rows, colCount: 4, widths: [13, 14, 20, 14] }
+    });
+  }
+
+  // —— 退货 ——
+  {
+    const rows = sortByDate(state.returns).map(r => [r.date || '', r.name || '', r.unit || '', n(toNum(r.qty)), n(toNum(r.price)), n(rowAmount(r)), r.note || '']);
+    rows.push(['退货共计', null, null, null, null, n(totalAll(state.returns)), null]);
+    sheets.push({
+      name: '退货',
+      spec: { title: (state.partyB||'乙方') + '退给' + (state.partyA||'甲方') + '的货', sub: state.cutoffNote || '', headers: ['日期', '名称及规格', '单位', '数量', '单价', '金额', '备注'], rows, colCount: 7, widths: [13, 22, 8, 10, 10, 12, 16] }
+    });
+  }
+
+  // —— 包内文件 ——
+  const enc = new TextEncoder();
+  files.push({ name: '[Content_Types].xml', data: enc.encode(
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    sheets.map((s, i) => '<Override PartName="/xl/worksheets/sheet' + (i+1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join('') +
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+    '</Types>'
+  ) });
+  files.push({ name: '_rels/.rels', data: enc.encode(
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+    '</Relationships>'
+  ) });
+  files.push({ name: 'xl/workbook.xml', data: enc.encode(
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+    '<sheets>' + sheets.map((s, i) => '<sheet name="' + esc(s.name) + '" sheetId="' + (i+1) + '" r:id="rId' + (i+1) + '"/>').join('') + '</sheets>' +
+    '</workbook>'
+  ) });
+  files.push({ name: 'xl/_rels/workbook.xml.rels', data: enc.encode(
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    sheets.map((s, i) => '<Relationship Id="rId' + (i+1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i+1) + '.xml"/>').join('') +
+    '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+    '</Relationships>'
+  ) });
+  files.push({ name: 'xl/styles.xml', data: enc.encode(STYLES_XML) });
+  sheets.forEach((s, i) => {
+    files.push({ name: 'xl/worksheets/sheet' + (i+1) + '.xml', data: enc.encode(sheetXml(s.spec)) });
+  });
+  return files;
+}
+function buildXlsxBytes(){
+  const files = buildXlsxFiles();
+  return zipStore(files);
+}
+function exportXlsx(){
+  flushInputs(); // 导出前同步 DOM 最新输入并落盘（保证导出的表含刚录入的数据，且重开不丢）
+  const n1 = state.goods.length, n2 = state.payments.length, n3 = state.returns.length;
+  if(n1 + n2 + n3 === 0){ alert('当前没有可导出的数据，请先录入货款/付款/退货。'); return; }
+  const noDate = state.goods.filter(r => !parseDateParts(r.date)).length;
+  let tip = '即将导出对账单 Excel：\n\n货款 ' + n1 + ' 笔\n付款 ' + n2 + ' 笔\n退货 ' + n3 + ' 笔\n期初余额：' + (state.opening || '空');
+  if(noDate > 0) tip += '\n\n⚠ 货款中有 ' + noDate + ' 笔没有填日期\n它们会放在「未标注日期货款」表里，不在各年份表内';
+  if(!state.partyA || !state.partyB) tip += '\n\n⚠ 甲方或乙方未填写，导出的表名会显示为「甲方/乙方」';
+  
+  tip += '\n\n确认导出？';
+  if(!confirm(tip)) return;
+  const bytes = buildXlsxBytes();
+  const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const now = new Date();
+  const ds = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const fname = '智能对账单_' + (state.partyA || '甲方') + '_' + (state.partyB || '乙方') + '_' + ds + '.xlsx';
+  // 移动端优先：支持则调用系统分享（微信/浏览器分享面板），失败自动退回下载
+  try {
+    const f = new File([blob], fname, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    if (navigator.canShare && navigator.share && navigator.canShare({ files: [f] })) {
+      navigator.share({ files: [f], title: fname }).catch(function(e){ if (!e || e.name !== 'AbortError') mobileFallback(blob, fname); });
+      return;
+    }
+  } catch(e){}
+  mobileFallback(blob, fname);
+}
+function mobileFallback(blob, fname){
+  // App（Android WebView）内：走原生桥保存到手机下载目录并提示
+  if (window.AndroidBridge && typeof AndroidBridge.saveXlsx === 'function') {
+    const reader = new FileReader();
+    reader.onload = function(){
+      const b64 = String(reader.result).split(',')[1] || '';
+      try {
+        const n = AndroidBridge.saveXlsx(b64, fname);
+        if (typeof n === 'number' && n > 0) {
+          alert('已保存到手机「下载」文件夹：\n' + fname + '\n文件大小：' + n + ' 字节\n\n可用微信/WPS 打开查看。');
+        } else if (typeof n === 'number' && n === -2) {
+          alert('正在打开系统「保存到」窗口：\n请在弹出的窗口中选择保存位置（推荐「下载」或「文档」），再点右下角「保存」。\n\n保存后文件即可在文件管理/微信中直接找到。');
+        } else if (typeof n === 'number' && n === 0) {
+          alert('保存失败：文件内容为空');
+        } else {
+          // 读取原生端记录的具体失败原因（存储不足/目录不可用/IO 错误），给精确提示
+          let reason = '';
+          try {
+            if (window.AndroidBridge && typeof AndroidBridge.lastSaveError === 'function') reason = AndroidBridge.lastSaveError() || '';
+          } catch(_){}
+          if (reason) {
+            alert('保存失败：' + reason + '\n\n建议：① 清理手机存储空间（微信缓存、照片、视频）后重试；\n② 点底部「🔄 更新」升级到最新版后再次导出（会自动打开系统保存框）。');
+          } else {
+            alert('保存失败，请检查手机存储空间后重试。（错误码：' + String(n) + '）');
+          }
+        }
+      } catch(e){ alert('保存失败：' + e.message); }
+    };
+    reader.onerror = function(){ downloadBlob(blob, fname); };
+    reader.readAsDataURL(blob);
+    return;
+  }
+  downloadBlob(blob, fname);
+}
+function downloadBlob(blob, fname){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+document.addEventListener('DOMContentLoaded', setup);
+
+/* 测试钩子：__zhinengImportTest(base64, mode) 供调试/验证用，不影响正常使用 */
+window.__zhinengImportTest = async function(b64, mode){
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const parsed = await parseImportXlsx(bytes);
+  const stats = mergeImport(parsed, mode || 'append');
+  save();
+  const FIELDS_P = [
+    { key:'date', label:'日期', ph:'2023.1.8', cls:'', w:'92px' },
+    { key:'amount', label:'付款金额', ph:'0.00', cls:'num' },
+    { key:'note', label:'备注', ph:'选填', cls:'' },
+  ];
+  const FIELDS_R = [
+    { key:'date', label:'日期', ph:'2023.3.23', cls:'', w:'92px' },
+    { key:'name', label:'名称及规格', ph:'名称及规格', cls:'' },
+    { key:'unit', label:'单位', ph:'付', cls:'', w:'60px' },
+    { key:'qty', label:'数量', ph:'0', cls:'num' },
+    { key:'price', label:'单价', ph:'0.00', cls:'num' },
+    { key:'note', label:'备注', ph:'选填', cls:'' },
+  ];
+  renderEditor(state.goods, G_FIELDS, 'amount', document.getElementById('goodsEditor'), balanceByIdMap());
+  renderEditor(state.payments, FIELDS_P, 'amount', document.getElementById('paymentsEditor'));
+  renderEditor(state.returns, FIELDS_R, 'amount', document.getElementById('returnsEditor'));
+  renderAllPreviews();
+  return {
+    parsed: { goods: parsed.goods.length, payments: parsed.payments.length, returns: parsed.returns.length, opening: parsed.opening, openingNote: parsed.openingNote },
+    stats,
+    state: { goods: state.goods.length, payments: state.payments.length, returns: state.returns.length, opening: state.opening, openingNote: state.openingNote },
+    totals: { goods: totalAll(state.goods), payments: totalPayAll(), returns: totalAll(state.returns), balance: buildSummaryRows().map(r => r.bal).pop() }
+  };
+};
+/* ================= AI 助手（本地智能版：读取全部账单 + 回答使用问题 + 帮助操作，完全离线） ================= */
+function aiMoney(n){ return n == null || !isFinite(n) ? '0' : String(round2(n)); }
+function aiTotal(rows, key){ return round2(rows.reduce((s,r)=>{ const v = toNum(r[key]); return v == null ? s : s + v; }, 0)); }
+/* 归一化：去空白/标点/小写，用于关键词匹配 */
+function aiNorm(s){ return String(s == null ? '' : s).toLowerCase().replace(/[\s，。！？、,.!?：:；;""''“”‘’（）()【】\[\]]/g, ''); }
+/* 在输入里找客户：先按编号（05/5号/第5个），再按名字包含 */
+function aiCustOf(t){
+  const list = customerList();
+  // 编号匹配：数字后面跟「月/年/日/小数点」时是日期不是编号（如「2024年3月」里的 3）
+  const mm = t.match(/(?:^|\D)(0?\d{1,2})(?:号|个)?(?!\s*月|\s*年|\s*日|\d|\.|\/)(?:\D|$)/);
+  if(mm){ const no = mm[1].padStart(2, '0'); const c = list.find(x => x.no === no); if(c) return c; }
+  for(const c of list){
+    const n = aiNorm(c.partyB);
+    if(n && t.includes(n)) return c;
+  }
+  return null;
+}
+function aiStats(c){
+  const op = toNum(c.opening) || 0;
+  const g = aiTotal(c.goods, 'amt'), p = aiTotal(c.payments, 'amount'), r = aiTotal(c.returns, 'amt');
+  return { op, g, p, r, end: round2(op + g - p - r), gN: c.goods.length, pN: c.payments.length, rN: c.returns.length };
+}
+let __aiOpeningShown = false;
+function aiAddMsg(role, text){
+  const box = document.getElementById('aiChatMsgs');
+  if(!box) return;
+  const d = document.createElement('div');
+  d.className = 'ai-msg ' + role;
+  d.innerHTML = esc(text); // 内容全部转义，防名称/输入里的特殊字符破坏布局
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+function aiSay(text){ aiAddMsg('bot', text); }
+function aiAsk(raw){
+  const input = document.getElementById('aiChatInput');
+  if(input) input.value = '';
+  aiAddMsg('user', raw);
+  aiHandle(raw);
+}
+const AI_FAQ = [
+  { k:['怎么导出','如何导出','怎么下载','存成excel','存成文件','导出对账单'], a:'点顶部蓝色「📥 导出 Excel」按钮，会生成 Excel 文件（含 总账/货款/付款/退货 四个表），发给对方或自己留底都行。' },
+  { k:['怎么打印','如何打印','打印对账单','打出来'], a:'点「🖨️ 打印」按钮，生成对账单预览后调起打印（App 里也可直接打印或存成图片）。' },
+  { k:['怎么导入','如何导入','导入账单','读excel','读账单'], a:'点「📥 导入」按钮选 Excel 账单文件；或点「📋 批量粘贴」把 Excel 里的行复制进来。' },
+  { k:['数据存','会不会丢','丢失','备份','留底'], a:'数据存在手机/电脑本机（浏览器本地存储），不上传网络。建议定期点「导出 Excel」留底；卸载 App 或清浏览器数据会丢，务必先导出。' },
+  { k:['期初是什么','期初怎么填','期初'], a:'期初 = 开始对账前对方还欠（或预存）的金额，在设置里填。余额 = 期初 + 货款 − 付款 − 退货。' },
+  { k:['余额怎么算','期末怎么算','怎么算余额','怎么算'], a:'期末余额 = 期初 + 货款合计 − 付款合计 − 退货合计，程序在「汇总」里自动算好。' },
+  { k:['检查更新','更新版本','升级','新版'], a:'点底部「🔄 更新」即可检查最新版：内容更新会自动同步（改功能不用重装）；有新安装包时会提示下载安装。你的数据只存本机，不会上传。' },
+  { k:['大字模式','字体太小','看不清','字太小'], a:'设置里打开「🔍 大字模式」，字更大、按钮更好点。' },
+  { k:['选名称','常用名称','免打字'], a:'货款/退货工具栏有「📇 选名称」大按钮，点开搜索或点选，单价自动带出。' },
+  { k:['怎么加客户','新建客户','加一个人'], a:'直接对我说「新建客户 张三」；或顶部客户框点「➕ 新建客户」输入名字（甲乙方留空，由你填写）。' },
+  { k:['切换客户','换客户','换一个人','换到'], a:'顶部客户框搜索/选择即可；或对我说「切到 05」（说编号或名字）。每个客户数据互相独立。' },
+  { k:['编号是什么','前面数字','号码'], a:'客户名字前的编号（01/02…）是固定编号，方便对号查找；删除客户后编号不变、不补。' },
+  { k:['单价自动','记忆单价','自动带出'], a:'输入名称后自动带出历史单价，可在设置里关掉「自动带出单价」。' },
+  { k:['粘贴','复制进来'], a:'点「📋 批量粘贴」，把 Excel 里的行直接复制进来（日期/名称/数量/单价…）。' },
+  { k:['产品统计','有哪些产品','统计产品','产品数量','哪些东西','什么产品'], a:'问「产品统计」就能看到所有客户卖过的产品：每种出现几次、数量多少、金额多少（按次数排序，显示前 20 种）。也可以指定客户，如「张三的产品统计」。' },
+];
+function aiHandle(raw){
+  const t = aiNorm(raw);
+  if(!t) return aiSay('请输入内容。');
+  /* 打招呼 / 帮助 */
+  if(/^(你好|您好|嗨|在吗|hello|hi|哈喽|早上好|晚上好|下午好|help|帮助|你会什么|能做什么|怎么用)$|^(你好|您好|嗨|在吗|哈喽|早上好|晚上好|下午好|help|帮助|你会什么|能做什么|怎么用)/.test(t)){
+    return aiSay('我是智能小助手，能帮你：\n\n① 查数据：如「当前客户的余额」「所有客户合计」\n② 帮你操作：如「导出 Excel」「打印」「新建客户 张三」「切换客户」\n③ 教用法：如「怎么导入账单」「数据会不会丢」\n\n直接打字问我就行。');
+  }
+  /* 危险操作：清空/删除记录 */
+  if(/清空|清除|删掉|删除|清掉|全部清/.test(t)){
+    const isDel = /删/.test(t);
+    if(/客户|人$/.test(t) && /删/.test(t)){
+      const c = aiCustOf(t) || currentCustomer();
+      if(!confirm('确定删除客户「' + customerDisplay(c) + '」的全部账目？无法恢复！')) return aiSay('已取消，没有删除。');
+      deleteCustomerFlowFor(c);
+      return aiSay('已删除客户「' + customerDisplay(c) + '」及其全部账目。');
+    }
+    const kind = /付款/.test(t) ? 'payments' : (/退货/.test(t) ? 'returns' : 'goods');
+    const c = aiCustOf(t) || currentCustomer();
+    const label = customerDisplay(c);
+    if(!confirm('确定' + (isDel ? '删除' : '清空') + '「' + label + '」的' + (kind === 'payments' ? '付款记录' : kind === 'returns' ? '退货记录' : '货款明细') + '？无法恢复！')) return aiSay('已取消，没动任何数据。');
+    if(c && c.id !== db.current){ db.current = c.id; state = c; }
+    const n = state[kind].length;
+    state[kind] = [];
+    save(); syncSettingsInputs(); rerenderEditors(); renderAllPreviews();
+    return aiSay('已' + (isDel ? '删除' : '清空') + '「' + label + '」的' + (kind === 'payments' ? '付款' : kind === 'returns' ? '退货' : '货款') + '记录（' + n + ' 笔）。');
+  }
+  /* 新建客户 */
+  if(/新建|新增|添加|加一个|加上|建一个/.test(t) && /客户|人/.test(t)){
+    const nm = raw.replace(/[新建新增添加加建一个客户人给我帮我叫名字是]/g, '').trim();
+    const name = nm && nm.length <= 12 ? nm : null;
+    if(!name) return aiSay('请说清楚客户名字，例如：新建客户 张三。');
+    if(customerList().some(c => c.partyB === name)) return aiSay('已经有同名客户「' + name + '」，不能重复建。');
+    const c = newCustomerObj(name);
+    db.customers[c.id] = c; db.current = c.id; state = c;
+    save(); renderCustomerSelector(); syncSettingsInputs(); rerenderEditors(); renderAllPreviews();
+    return aiSay('已新建客户「' + name + '」（编号 ' + c.no + '，甲方乙方留空、由你填写），现在可以开始录入。');
+  }
+  /* 操作：导出 / 打印 / 选名称 / 大字模式 */
+  if(/导出|下载|excel|xlsx|存成文件|存成excel/.test(t)){
+    aiSay('好的，正在导出 Excel…');
+    setTimeout(() => { try{ exportXlsx(); }catch(e){ aiSay('导出没成功，请点工具栏「📥 导出 Excel」按钮试试。'); } }, 60);
+    return;
+  }
+  if(/打印/.test(t)){
+    renderAllPreviews();
+    setTimeout(() => { const b = document.getElementById('printBtn'); if(b) b.click(); else aiSay('没找到打印按钮。'); }, 60);
+    return aiSay('好的，正在生成打印预览…');
+  }
+  if(/选名称|常用名称/.test(t) && /货款|退货/.test(t)){ openNamePicker(() => {}); return aiSay('已打开「选名称」窗口，点名称自动填入最新一行。'); }
+  if(/大字/.test(t)){
+    const el = document.getElementById('largeMode');
+    if(el){ const on = /开|大/.test(t) && !/关|取消|不要/.test(t) ? true : (el.checked ? false : true); el.checked = on; document.body.classList.toggle('large-mode', on); try{ localStorage.setItem('zhineng-large-mode', on ? '1' : '0'); }catch(_){} }
+    return aiSay('已' + ((document.getElementById('largeMode') && document.getElementById('largeMode').checked) ? '开启' : '关闭') + '大字模式。');
+  }
+  /* 切换客户（优先于 FAQ/数据查询，如「切到 05」「换到 张三」） */
+  if(/切到|切至|切换|换到|换至|选到|打开客户/.test(t)){
+    const c2 = aiCustOf(t);
+    if(c2 && c2.id !== db.current){ selectCustomer(c2.id); return aiSay('已切换到客户「' + customerDisplay(c2) + '」（编号 ' + c2.no + '）。'); }
+    if(c2) return aiSay('现在就是客户「' + customerDisplay(c2) + '」（编号 ' + c2.no + '）。');
+  }
+  /* 销售统计问答：X 年卖了多少钱 / 卖得最好的月份 / 总营业额（本地计算） */
+  const sellQ = /卖了多少钱|卖了多少|营业额|销售额|销售统计|年卖了|卖得最好|卖得最多|卖得好|年度统计|月度统计/.test(t);
+  if(sellQ){
+    const yearMatch = t.match(/(19|20)\d{2}/);
+    const moMatch = t.match(/(\d{1,2})\s*月/);
+    const one = aiCustOf(t);
+    const scopeC = one ? [one] : customerList().filter(c => c.partyB);
+    const scopeLabel = one ? ('客户「' + customerDisplay(one) + '」') : ('全部 ' + scopeC.length + ' 个客户');
+    const st = salesStats(scopeC, yearMatch ? parseInt(yearMatch[0], 10) : null);
+    if(yearMatch){
+      const y = parseInt(yearMatch[0], 10);
+      const yb = st.years.find(x => x.y === y);
+      if(!yb) return aiSay('【销售统计】' + scopeLabel + '：' + y + ' 年没有货款记录。');
+      if(moMatch){
+        const mo = parseInt(moMatch[1], 10);
+        const mb = st.months.find(x => x.mo === mo);
+        if(!mb) return aiSay('【销售统计】' + scopeLabel + '：' + y + ' 年 ' + mo + ' 月没有货款记录。');
+        return aiSay('【销售统计】' + scopeLabel + '：' + y + ' 年 ' + mo + ' 月销售额 ' + aiMoney(mb.amt) + ' 元。');
+      }
+      let msg = '【销售统计】' + scopeLabel + '：' + y + ' 年销售额 ' + aiMoney(yb.amt) + ' 元';
+      if(yb.ret > 0) msg += '（已扣除退货 ' + aiMoney(yb.ret) + ' 元）';
+      if(st.months.length){ const best = st.months.reduce((a, b) => b.amt > a.amt ? b : a); msg += '，卖得最好的月份：' + best.mo + ' 月 ' + aiMoney(best.amt) + ' 元'; }
+      return aiSay(msg + '。');
+    }
+    if(!st.years.length) return aiSay('【销售统计】' + scopeLabel + '：还没有货款记录。');
+    let msg = '【销售统计】' + scopeLabel + '：总共卖了 ' + aiMoney(st.total) + ' 元';
+    if(st.retTotal > 0) msg += '（退货 ' + aiMoney(st.retTotal) + ' 元已扣除）';
+    if(st.years.length){ const best = st.years.reduce((a, b) => b.amt > a.amt ? b : a); msg += '，卖得最好的年份：' + best.y + ' 年 ' + aiMoney(best.amt) + ' 元'; }
+    if(st.months.length){ const bestm = st.months.reduce((a, b) => b.amt > a.amt ? b : a); msg += '；卖得最好的月份：' + bestm.mo + ' 月 ' + aiMoney(bestm.amt) + ' 元'; }
+    return aiSay(msg + '。');
+  }
+  /* 产品统计：统计账单里的产品名/出现次数/数量/金额（默认所有客户；提到某客户只统计该客户） */
+  const prodQ = /产品|品名/.test(t) || (/统计/.test(t) && /名称|名字|品名/.test(t));
+  if(prodQ && /统计|多少|哪些|什么|几次|几种|汇总|一共|总共|最多/.test(t)){
+    let scope = customerList().filter(c => c.partyB);
+    const one = aiCustOf(t);
+    if(one) scope = [one];
+    const map = new Map();
+    for(const c of scope){
+      for(const r of c.goods){
+        const nm = String(r.name || '').trim();
+        if(!nm) continue;
+        const e = map.get(nm) || { count:0, qty:0, amt:0 };
+        e.count++;
+        const q = toNum(r.qty); if(q != null) e.qty += q;
+        const a = toNum(r.amt); if(a != null) e.amt += a;
+        map.set(nm, e);
+      }
+    }
+    const arr = [...map.entries()].sort((a, b) => b[1].count - a[1].count || b[1].amt - a[1].amt);
+    const scopeLabel = one ? ('客户「' + customerDisplay(one) + '」') : ('全部 ' + scope.length + ' 个客户');
+    if(!arr.length) return aiSay('【产品统计】' + scopeLabel + '：还没有货款记录，统计不出产品。');
+    const lines = ['【产品统计】' + scopeLabel + '，共 ' + arr.length + ' 种产品（按出现次数排序）：'];
+    arr.slice(0, 20).forEach(([nm, e], i) => lines.push((i + 1) + '. ' + nm + '　×' + e.count + ' 次，数量 ' + aiMoney(e.qty) + '，金额 ' + aiMoney(e.amt)));
+    if(arr.length > 20) lines.push('…（还有 ' + (arr.length - 20) + ' 种，这里只显示前 20 种）');
+    return aiSay(lines.join('\n'));
+  }
+  /* FAQ（使用知识） */
+  for(const f of AI_FAQ){ if(f.k.some(k => t.includes(k))) return aiSay(f.a); }
+  /* 数据查询 */
+  const all = /所有|全部|每个|每一|总共|一共|总计|合计所有/.test(t);
+  const listQ = /几个客户|客户列表|有哪些客户|多少客户|客户名单/.test(t);
+  // 「别人欠我们多少」类：问欠款总额（须含 总共/一共/全部/所有/别人/他们/合计 等范围词，避免截胡「张三欠多少」的单客户查询）
+  // 扩展：「谁欠他的钱最多」「欠钱最多的是谁」等（含 谁/哪/最/排行 等疑问排行词且未指名客户）也走全客户欠款排序
+  const namedCust = aiCustOf(t); // 是否点名了某客户（点名则走下方单客户查询，不做全客户欠款）
+  const wantOwe = /欠/.test(t) && !namedCust && (/总共|一共|全部|所有|别人|他们|合计|汇总|总数|谁|哪|最|排行|排名|第|几/.test(t));
+  if(all || /合计|汇总|总数/.test(t) || wantOwe){
+    const lines = [];
+    let to = 0, tg = 0, tp = 0, tr = 0, tc = 0, owe = 0, oweN = 0, over = 0, overN = 0;
+    const oweLines = [];
+    for(const c of customerList()){
+      if(!c.partyB) continue;
+      const s = aiStats(c);
+      if(s.end > 0){ owe += s.end; oweN++; oweLines.push({ end: s.end, line: (c.no ? c.no + ' ' : '') + c.partyB + '：' + aiMoney(s.end) }); }
+      else if(s.end < 0){ over += -s.end; overN++; }
+      lines.push((c.no ? c.no + ' ' : '') + c.partyB + '：期末 ' + aiMoney(s.end) + '（期初 ' + aiMoney(s.op) + ' 货 ' + aiMoney(s.g) + ' 付 ' + aiMoney(s.p) + ' 退 ' + aiMoney(s.r) + '）');
+      to += s.op; tg += s.g; tp += s.p; tr += s.r; tc++;
+    }
+    if(wantOwe){
+      // 欠款明细按金额从高到低排序
+      oweLines.sort((a, b) => b.end - a.end);
+      let msg = '【别人欠我们多少】\n对方共欠我们 ' + aiMoney(owe) + ' 元（' + oweN + ' 个客户）';
+      if(oweLines.length) msg += '\n（按欠款从多到少）\n' + oweLines.map(x => x.line).join('\n');
+      if(overN) msg += '\n另有 ' + overN + ' 个客户已多付 ' + aiMoney(over) + ' 元（是我们欠他们的）';
+      return aiSay(msg);
+    }
+    lines.push('——————————');
+    lines.push('共 ' + tc + ' 个客户，总计：期初 ' + aiMoney(to) + ' 货款 ' + aiMoney(tg) + ' 付款 ' + aiMoney(tp) + ' 退货 ' + aiMoney(tr));
+    lines.push('对方共欠我们：' + aiMoney(owe) + ' 元' + (overN ? '（另有 ' + overN + ' 个客户多付 ' + aiMoney(over) + ' 元）' : ''));
+    return aiSay(lines.join('\n'));
+  }
+  if(listQ){
+    const lines = customerList().filter(c => c.partyB).map(c => (c.no ? c.no + ' ' : '') + c.partyB);
+    return aiSay('当前共 ' + lines.length + ' 个客户：\n' + lines.join('、'));
+  }
+  const c = aiCustOf(t);
+  if(c){
+    const s = aiStats(c);
+    const name = customerDisplay(c);
+    const keys = [];
+    if(/期初/.test(t) || /余额|期末/.test(t) || /货款/.test(t) || /付款/.test(t) || /退货/.test(t) || /笔|多少钱|多少|合计|总数/.test(t)) keys.push('');
+    return aiSay('【' + name + '】（编号 ' + (c.no || '—') + '）\n期初：' + aiMoney(s.op) + '\n货款：' + s.gN + ' 笔，合计 ' + aiMoney(s.g) + '\n付款：' + s.pN + ' 笔，合计 ' + aiMoney(s.p) + '\n退货：' + s.rN + ' 笔，合计 ' + aiMoney(s.r) + '\n期末余额：' + aiMoney(s.end));
+  }
+  if(/切|换|选|打开/.test(t)){
+    const c2 = aiCustOf(t);
+    if(c2){ selectCustomer(c2.id); return aiSay('已切换到客户「' + customerDisplay(c2) + '」（编号 ' + c2.no + '）。'); }
+  }
+  return aiSay('这个我还不会，你可以问我：\n· 当前客户的余额\n· 所有客户合计\n· 怎么导出 Excel\n· 新建客户 张三\n· 怎么切换客户\n· 怎么导入账单');
+}function deleteCustomerFlowFor(c){
+  if(!c || !db.customers[c.id]) return;
+  delete db.customers[c.id];
+  const ids = Object.keys(db.customers);
+  if(!ids.length){ db = freshDb(); }
+  db.current = ids.length ? ids[0] : db.current;
+  state = db.customers[db.current];
+  save(); renderCustomerSelector(); syncSettingsInputs(); rerenderEditors(); renderAllPreviews();
+}
+</script>
+<button id="aiFab" class="ai-fab" title="对账小助手">💬</button>
+<button id="backTopBtn" class="back-top" title="回到首页" aria-label="回到首页">⬆</button>
+</body>
+</html>
